@@ -3,60 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計・送金マネージャー v2.1</title>
+    <title>夫婦の家計・送金マネージャー v3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        /* アイコンが消えても場所がわかるように最小サイズを確保 */
         .icon-box { min-width: 24px; min-height: 24px; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans pb-24">
 
-    <header class="bg-indigo-600 text-white p-4 shadow-lg mb-4">
-        <h1 class="text-xl font-bold flex items-center gap-2">
-            家計・送金マネージャー
-        </h1>
+    <header class="bg-indigo-600 text-white p-4 shadow-lg mb-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">家計マネージャー</h1>
+        <div id="current-month" class="text-sm font-medium bg-indigo-500 px-3 py-1 rounded-full">2026年4月</div>
     </header>
 
     <main class="max-w-md mx-auto px-4">
         
-        <div id="tab-input" class="tab-content active space-y-6">
-            <section class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-bold text-indigo-700">収入入力</h2>
-                    <select id="income-type" onchange="toggleIncomeType()" class="bg-slate-100 px-3 py-1 rounded-lg text-sm font-bold">
-                        <option value="Salary">毎月の給与</option>
-                        <option value="Bonus">賞与 (6/12月)</option>
-                        <option value="Extra">臨時収入</option>
-                    </select>
+        <div id="tab-top" class="tab-content active space-y-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">今月の総予算</p>
+                    <p id="top-total-budget" class="text-xl font-black text-slate-700">¥0</p>
                 </div>
-                
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">登録費目数</p>
+                    <p id="top-cat-count" class="text-xl font-black text-slate-700">0</p>
+                </div>
+            </div>
+            
+            <section class="bg-indigo-900 text-white p-6 rounded-3xl shadow-xl relative overflow-hidden">
+                <div class="relative z-10">
+                    <p class="text-xs opacity-70 mb-1 font-bold">先月の貯蓄実績（推定）</p>
+                    <p class="text-3xl font-black">¥45,000</p>
+                    <p class="text-[10px] mt-4 opacity-50">※収入 - 設定予算の差分から算出</p>
+                </div>
+                <i data-lucide="trending-up" class="absolute -right-4 -bottom-4 w-32 h-32 opacity-10"></i>
+            </section>
+        </div>
+
+        <div id="tab-input" class="tab-content space-y-6">
+            <section class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <h2 class="text-sm font-black text-slate-400 mb-4 uppercase tracking-widest text-center">Income Input</h2>
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">夫の収入</label>
-                            <input type="number" id="inc-h" class="w-full text-xl font-semibold border-b-2 border-slate-200 outline-none py-1" placeholder="0">
+                        <div class="bg-slate-50 p-3 rounded-xl">
+                            <label class="block text-[10px] font-bold text-slate-400 mb-1">夫の給与</label>
+                            <input type="number" id="inc-h" class="w-full bg-transparent text-lg font-bold outline-none" placeholder="0">
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">妻の収入</label>
-                            <input type="number" id="inc-w" class="w-full text-xl font-semibold border-b-2 border-slate-200 outline-none py-1" placeholder="0">
+                        <div class="bg-slate-50 p-3 rounded-xl">
+                            <label class="block text-[10px] font-bold text-slate-400 mb-1">妻の給与</label>
+                            <input type="number" id="inc-w" class="w-full bg-transparent text-lg font-bold outline-none" placeholder="0">
                         </div>
                     </div>
-                    <button onclick="calculate()" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-md">
-                        計算する
+                    <button onclick="calculate()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 shadow-lg active:scale-95 transition-all">
+                        計算・分析を実行
                     </button>
                 </div>
             </section>
 
             <div id="result-area" class="hidden space-y-6">
-                <h3 class="text-sm font-bold text-slate-500 mb-3 uppercase tracking-wider">必要な振込・移動</h3>
-                <div id="remittance-list" class="space-y-3"></div>
+                <div>
+                    <h3 class="text-xs font-black text-slate-400 mb-3 uppercase flex items-center gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i> 送金シミュレーション
+                    </h3>
+                    <div id="remittance-list" class="space-y-3"></div>
+                </div>
                 
                 <section class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-                    <h3 class="text-sm font-bold text-slate-500 mb-3 text-center">予算状況</h3>
+                    <h3 class="text-xs font-black text-slate-400 mb-4 uppercase text-center">費目別実績入力 (浪費チェック)</h3>
                     <div id="status-list" class="space-y-4"></div>
                 </section>
             </div>
@@ -64,78 +80,81 @@
 
         <div id="tab-master" class="tab-content space-y-6">
             <section class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                <h2 class="text-lg font-bold mb-4 text-indigo-700">基本設定</h2>
+                <h2 class="text-lg font-bold mb-4 text-indigo-700">ルール設定</h2>
                 
                 <div class="space-y-6">
                     <div>
-                        <label class="block text-sm font-bold mb-2">1. 支払い口座の追加</label>
-                        <div class="flex gap-2 mb-2">
-                            <input type="text" id="new-account" class="flex-1 bg-slate-100 px-3 py-2 rounded-lg text-sm" placeholder="例: 共通口座">
-                            <button onclick="addAccount()" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold">追加</button>
+                        <label class="block text-sm font-bold mb-2">1. 口座登録</label>
+                        <div class="flex gap-2 mb-3">
+                            <input type="text" id="new-account" class="flex-1 bg-slate-100 px-3 py-2 rounded-xl text-sm" placeholder="例: 共通口座">
+                            <button onclick="addAccount()" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">追加</button>
                         </div>
                         <div id="account-tags" class="flex flex-wrap gap-2"></div>
                     </div>
 
-                    <hr>
+                    <hr class="border-slate-100">
 
                     <div>
-                        <label class="block text-sm font-bold mb-2">2. 費目(支払いルール)の追加</label>
-                        <div class="space-y-2">
-                            <input type="text" id="cat-name" class="w-full bg-slate-100 px-3 py-2 rounded-lg text-sm" placeholder="費目名 (例: 家賃)">
+                        <label class="block text-sm font-bold mb-2">2. 費目の追加</label>
+                        <div class="space-y-3">
+                            <input type="text" id="cat-name" class="w-full bg-slate-100 px-4 py-3 rounded-xl text-sm" placeholder="費目名 (例: 食費)">
                             <div class="grid grid-cols-2 gap-2">
-                                <input type="number" id="cat-target" class="bg-slate-100 px-3 py-2 rounded-lg text-sm" placeholder="金額">
-                                <select id="cat-account" class="bg-slate-100 px-3 py-2 rounded-lg text-sm"></select>
+                                <input type="number" id="cat-target" class="bg-slate-100 px-4 py-3 rounded-xl text-sm" placeholder="目標金額">
+                                <select id="cat-account" class="bg-slate-100 px-4 py-3 rounded-xl text-sm"></select>
                             </div>
-                            <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-lg text-sm font-bold">保存</button>
+                            <div class="bg-indigo-50 p-3 rounded-xl">
+                                <span class="text-[10px] font-bold text-indigo-400 block mb-2 uppercase">主な支払担当者</span>
+                                <div class="flex gap-4">
+                                    <label class="flex items-center gap-2 text-sm"><input type="radio" name="payer" value="夫" checked> 夫</label>
+                                    <label class="flex items-center gap-2 text-sm"><input type="radio" name="payer" value="妻"> 妻</label>
+                                </div>
+                            </div>
+                            <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-sm font-black shadow-md">このルールを保存</button>
                         </div>
                     </div>
                 </div>
             </section>
             
-            <section class="bg-white rounded-2xl p-4 shadow-sm">
-                <h3 class="text-sm font-bold mb-3 text-slate-500">現在のルール一覧</h3>
-                <div id="category-list" class="space-y-2"></div>
-            </section>
+            <div id="category-list" class="space-y-3"></div>
         </div>
 
     </main>
 
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 shadow-2xl z-50">
-        <button onclick="showTab('input')" class="flex flex-col items-center flex-1 py-1">
-            <div class="icon-box text-indigo-600"><i data-lucide="calculator"></i></div>
-            <span class="text-[10px] font-bold text-indigo-600">入力・計算</span>
+    <nav class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 flex justify-around p-3 shadow-2xl z-50">
+        <button onclick="showTab('top')" class="flex flex-col items-center flex-1 py-1 nav-btn active" data-tab="top">
+            <div class="icon-box"><i data-lucide="layout-grid"></i></div>
+            <span class="text-[10px] font-bold">概要</span>
         </button>
-        <button onclick="showTab('master')" class="flex flex-col items-center flex-1 py-1">
-            <div class="icon-box text-slate-400"><i data-lucide="settings"></i></div>
-            <span class="text-[10px] font-bold text-slate-400">設定</span>
+        <button onclick="showTab('input')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="input">
+            <div class="icon-box"><i data-lucide="calculator"></i></div>
+            <span class="text-[10px] font-bold">計算</span>
+        </button>
+        <button onclick="showTab('master')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="master">
+            <div class="icon-box"><i data-lucide="settings-2"></i></div>
+            <span class="text-[10px] font-bold">設定</span>
         </button>
     </nav>
 
     <script>
-        let appData = JSON.parse(localStorage.getItem('kakei_data')) || {
+        let appData = JSON.parse(localStorage.getItem('kakei_data_v3')) || {
             accounts: ['共通口座', '夫口座', '妻口座'],
             categories: []
         };
 
         function save() {
-            localStorage.setItem('kakei_data', JSON.stringify(appData));
+            localStorage.setItem('kakei_data_v3', JSON.stringify(appData));
             renderMaster();
+            renderTop();
         }
 
         function showTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.add('active');
             
-            // 全ボタンの色をグレーに戻す
-            document.querySelectorAll('nav button span, nav button .icon-box').forEach(el => {
-                el.classList.remove('text-indigo-600');
-                el.classList.add('text-slate-400');
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const color = btn.dataset.tab === tabId ? 'text-indigo-600' : 'text-slate-400';
+                btn.className = `flex flex-col items-center flex-1 py-1 nav-btn ${color}`;
             });
-            // 選択したボタンだけ色をつける
-            const activeBtn = event.currentTarget;
-            activeBtn.querySelector('span').classList.add('text-indigo-600');
-            activeBtn.querySelector('.icon-box').classList.add('text-indigo-600');
-            
             lucide.createIcons();
         }
 
@@ -152,8 +171,9 @@
             const name = document.getElementById('cat-name').value;
             const target = Number(document.getElementById('cat-target').value);
             const account = document.getElementById('cat-account').value;
+            const payer = document.querySelector('radio[name="payer"]:checked')?.value || '夫';
             if(name && target) {
-                appData.categories.push({ name, target, account });
+                appData.categories.push({ name, target, account, payer });
                 document.getElementById('cat-name').value = '';
                 document.getElementById('cat-target').value = '';
                 save();
@@ -161,22 +181,23 @@
         }
 
         function renderMaster() {
-            const tags = document.getElementById('account-tags');
-            tags.innerHTML = appData.accounts.map(a => `<span class="bg-slate-200 px-2 py-1 rounded text-[10px] font-bold">${a}</span>`).join('');
+            document.getElementById('account-tags').innerHTML = appData.accounts.map(a => `<span class="bg-white border border-slate-200 px-3 py-1 rounded-full text-[10px] font-bold shadow-sm">${a}</span>`).join('');
+            document.getElementById('cat-account').innerHTML = appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
             
-            const select = document.getElementById('cat-account');
-            select.innerHTML = appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
-
             const list = document.getElementById('category-list');
-            list.innerHTML = appData.categories.length ? appData.categories.map((c, i) => `
-                <div class="flex justify-between items-center text-xs p-3 bg-slate-50 rounded-lg border border-slate-100">
+            list.innerHTML = appData.categories.map((c, i) => `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
                     <div>
-                        <p class="font-bold">${c.name}</p>
-                        <p class="text-slate-400">¥${c.target.toLocaleString()} → ${c.account}</p>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-bold">${c.payer}担当</span>
+                            <p class="font-black text-slate-700">${c.name}</p>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">¥${c.target.toLocaleString()} → ${c.account}</p>
                     </div>
-                    <button onclick="deleteCat(${i})" class="text-red-400 w-8 h-8 flex items-center justify-center text-lg">×</button>
+                    <button onclick="deleteCat(${i})" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                 </div>
-            `).join('') : '<p class="text-xs text-slate-400 text-center py-4">費目が登録されていません</p>';
+            `).join('');
+            lucide.createIcons();
         }
 
         function deleteCat(i) {
@@ -184,6 +205,12 @@
                 appData.categories.splice(i, 1);
                 save();
             }
+        }
+
+        function renderTop() {
+            const total = appData.categories.reduce((sum, c) => sum + c.target, 0);
+            document.getElementById('top-total-budget').innerText = `¥${total.toLocaleString()}`;
+            document.getElementById('top-cat-count').innerText = `${appData.categories.length}項目`;
         }
 
         function calculate() {
@@ -195,49 +222,67 @@
             remList.innerHTML = '';
             statList.innerHTML = '';
 
-            const summary = {};
+            // 送金計算: 担当者から口座への流れ
+            const remSummary = {};
             appData.categories.forEach(c => {
-                summary[c.account] = (summary[c.account] || 0) + c.target;
+                const key = `${c.payer}の給与 → ${c.account}`;
+                remSummary[key] = (remSummary[key] || 0) + c.target;
             });
 
-            for (const [acc, amt] of Object.entries(summary)) {
+            for (const [key, amt] of Object.entries(remSummary)) {
                 remList.innerHTML += `
-                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500 flex justify-between items-center">
-                        <div class="flex items-center gap-3">
-                            <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600"><i data-lucide="arrow-right-left" class="w-4 h-4"></i></div>
-                            <div>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Transfer to</p>
-                                <p class="font-bold text-slate-700">${acc}</p>
-                            </div>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-indigo-500 flex justify-between items-center">
+                        <div>
+                            <p class="text-[9px] font-black text-indigo-400 uppercase leading-none mb-1">${key.split(' → ')[0]}</p>
+                            <p class="font-bold text-slate-700 text-sm">移動先: ${key.split(' → ')[1]}</p>
                         </div>
-                        <p class="text-lg font-black text-slate-900">¥${amt.toLocaleString()}</p>
+                        <p class="text-lg font-black">¥${amt.toLocaleString()}</p>
                     </div>
                 `;
             }
 
-            appData.categories.forEach(c => {
+            // 実績入力と浪費チェック
+            appData.categories.forEach((c, i) => {
                 statList.innerHTML += `
-                    <div class="bg-slate-50 p-3 rounded-lg">
-                        <div class="flex justify-between text-xs font-bold mb-2">
-                            <span>${c.name}</span>
-                            <span class="text-indigo-600">¥${c.target.toLocaleString()}</span>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-end">
+                            <label class="text-xs font-bold">${c.name} <span class="text-[10px] text-slate-400 font-normal">(目標 ¥${c.target.toLocaleString()})</span></label>
+                            <input type="number" oninput="checkOver(${i}, this.value, ${c.target})" 
+                                   class="bg-slate-100 px-3 py-1 rounded-lg text-sm font-bold w-24 text-right outline-none" 
+                                   placeholder="実績額">
                         </div>
-                        <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div class="bg-indigo-500 h-full" style="width: 100%"></div>
+                        <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-${i}" class="bg-indigo-500 h-full transition-all" style="width: 0%"></div>
                         </div>
+                        <p id="alert-${i}" class="text-[10px] font-bold text-red-500 hidden">⚠️ 目標をオーバーしています！</p>
                     </div>
                 `;
             });
             lucide.createIcons();
-            
-            // 計算後に少しスクロールする
-            window.scrollTo({ top: 400, behavior: 'smooth' });
+            window.scrollTo({ top: 500, behavior: 'smooth' });
         }
 
-        // 初期実行
+        function checkOver(index, value, target) {
+            const bar = document.getElementById(`bar-${index}`);
+            const alert = document.getElementById(`alert-${index}`);
+            const val = Number(value);
+            
+            const percent = Math.min((val / target) * 100, 100);
+            bar.style.width = percent + '%';
+            
+            if(val > target) {
+                bar.classList.replace('bg-indigo-500', 'bg-red-500');
+                alert.classList.remove('hidden');
+            } else {
+                bar.classList.replace('bg-red-500', 'bg-indigo-500');
+                alert.classList.add('hidden');
+            }
+        }
+
         window.onload = () => {
             renderMaster();
-            lucide.createIcons();
+            renderTop();
+            showTab('top');
         };
     </script>
 </body>
