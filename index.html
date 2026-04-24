@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>夫婦の家計・送金シミュレーター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans pb-20">
+
+    <header class="bg-indigo-600 text-white p-4 shadow-lg mb-6">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <i data-lucide="wallet"></i> 家計・送金シミュレーター
+        </h1>
+    </header>
+
+    <main class="max-w-md mx-auto px-4">
+        <section class="bg-white rounded-2xl p-6 shadow-sm mb-6 border border-slate-100">
+            <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-700">
+                <i data-lucide="banknote"></i> 今月の収入入力
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-500">夫の給与</label>
+                    <input type="number" id="inc-h" class="w-full text-2xl font-semibold border-b-2 border-slate-200 focus:border-indigo-500 outline-none transition-all py-1" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-500">妻の給与</label>
+                    <input type="number" id="inc-w" class="w-full text-2xl font-semibold border-b-2 border-slate-200 focus:border-indigo-500 outline-none transition-all py-1" placeholder="0">
+                </div>
+                <button onclick="calculate()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 active:scale-95 transition-all">
+                    送金額を計算する
+                </button>
+            </div>
+        </section>
+
+        <section id="result-section" class="hidden animate-in fade-in duration-500">
+            <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
+                <i data-lucide="arrow-right-left"></i> 今月の振込アクション
+            </h2>
+            <div id="remittance-list" class="space-y-3 mb-6">
+                </div>
+
+            <div class="bg-indigo-50 rounded-2xl p-6 border border-indigo-100">
+                <h3 class="font-bold text-indigo-900 mb-2">支出・目標チェック</h3>
+                <div id="status-list" class="space-y-2 text-sm">
+                    </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 設定値（本来はマスタ画面で作るもの）
+        const master = {
+            fixed: [
+                { name: '家賃・光熱費', target: 120000, account: '共通口座' },
+                { name: '夫クレカ（食費等）', target: 50000, account: '夫引落口座' }
+            ],
+            variable: [
+                { name: '日用品（妻支払）', target: 20000, account: '妻引落口座' }
+            ]
+        };
+
+        function calculate() {
+            const h = Number(document.getElementById('inc-h').value);
+            const w = Number(document.getElementById('inc-w').value);
+            const resultDiv = document.getElementById('result-section');
+            const listDiv = document.getElementById('remittance-list');
+            const statusDiv = document.getElementById('status-list');
+
+            listDiv.innerHTML = '';
+            statusDiv.innerHTML = '';
+            resultDiv.classList.remove('hidden');
+
+            // 送金シミュレーション（簡易ロジック）
+            master.fixed.forEach(item => {
+                const card = `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500 flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-slate-400">夫の給与 → ${item.account}</p>
+                            <p class="font-bold">${item.name}</p>
+                        </div>
+                        <p class="text-lg font-black text-indigo-600">¥${item.target.toLocaleString()}</p>
+                    </div>
+                `;
+                listDiv.innerHTML += card;
+
+                const status = `
+                    <div class="flex justify-between">
+                        <span>${item.name}</span>
+                        <span class="font-medium">目標 ¥${item.target.toLocaleString()} </span>
+                    </div>
+                `;
+                statusDiv.innerHTML += status;
+            });
+
+            lucide.createIcons();
+        }
+        lucide.createIcons();
+    </script>
+</body>
+</html>
