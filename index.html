@@ -3,100 +3,231 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計・送金シミュレーター</title>
+    <title>夫婦の家計・送金シミュレーター v2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans pb-20">
+<body class="bg-slate-50 text-slate-800 font-sans pb-24">
 
-    <header class="bg-indigo-600 text-white p-4 shadow-lg mb-6">
+    <header class="bg-indigo-600 text-white p-4 shadow-lg mb-4">
         <h1 class="text-xl font-bold flex items-center gap-2">
-            <i data-lucide="wallet"></i> 家計・送金シミュレーター
+            <i data-lucide="wallet"></i> 家計・送金マネージャー
         </h1>
     </header>
 
     <main class="max-w-md mx-auto px-4">
-        <section class="bg-white rounded-2xl p-6 shadow-sm mb-6 border border-slate-100">
-            <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-700">
-                <i data-lucide="banknote"></i> 今月の収入入力
-            </h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-500">夫の給与</label>
-                    <input type="number" id="inc-h" class="w-full text-2xl font-semibold border-b-2 border-slate-200 focus:border-indigo-500 outline-none transition-all py-1" placeholder="0">
+        
+        <div id="tab-input" class="tab-content active space-y-6">
+            <section class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-indigo-700 flex items-center gap-2">
+                        <i data-lucide="banknote"></i> 収入入力
+                    </h2>
+                    <select id="income-type" onchange="toggleIncomeType()" class="bg-slate-100 px-3 py-1 rounded-lg text-sm font-bold">
+                        <option value="Salary">毎月の給与</option>
+                        <option value="Bonus">賞与 (6/12月)</option>
+                        <option value="Extra">臨時収入</option>
+                    </select>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-500">妻の給与</label>
-                    <input type="number" id="inc-w" class="w-full text-2xl font-semibold border-b-2 border-slate-200 focus:border-indigo-500 outline-none transition-all py-1" placeholder="0">
-                </div>
-                <button onclick="calculate()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 active:scale-95 transition-all">
-                    送金額を計算する
-                </button>
-            </div>
-        </section>
-
-        <section id="result-section" class="hidden animate-in fade-in duration-500">
-            <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-slate-700">
-                <i data-lucide="arrow-right-left"></i> 今月の振込アクション
-            </h2>
-            <div id="remittance-list" class="space-y-3 mb-6">
-                </div>
-
-            <div class="bg-indigo-50 rounded-2xl p-6 border border-indigo-100">
-                <h3 class="font-bold text-indigo-900 mb-2">支出・目標チェック</h3>
-                <div id="status-list" class="space-y-2 text-sm">
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">夫の収入</label>
+                            <input type="number" id="inc-h" class="w-full text-xl font-semibold border-b-2 border-slate-200 outline-none py-1" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">妻の収入</label>
+                            <input type="number" id="inc-w" class="w-full text-xl font-semibold border-b-2 border-slate-200 outline-none py-1" placeholder="0">
+                        </div>
                     </div>
+                    <button onclick="calculate()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md">
+                        送金・収支を計算
+                    </button>
+                </div>
+            </section>
+
+            <div id="result-area" class="hidden space-y-6">
+                <section>
+                    <h3 class="text-sm font-bold text-slate-500 mb-3 flex items-center gap-1">
+                        <i data-lucide="send" class="w-4 h-4"></i> 必要な送金アクション
+                    </h3>
+                    <div id="remittance-list" class="space-y-3"></div>
+                </section>
+                
+                <section class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-500 mb-3">費目ごとの予算状況</h3>
+                    <div id="status-list" class="space-y-4"></div>
+                </section>
             </div>
-        </section>
+        </div>
+
+        <div id="tab-master" class="tab-content space-y-6">
+            <section class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <h2 class="text-lg font-bold mb-4 text-indigo-700">口座・費目の設定</h2>
+                
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-bold mb-2">1. 支払い口座の登録</label>
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" id="new-account" class="flex-1 bg-slate-100 px-3 py-2 rounded-lg text-sm" placeholder="例: 共通口座">
+                            <button onclick="addAccount()" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold">追加</button>
+                        </div>
+                        <div id="account-tags" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <hr>
+
+                    <div>
+                        <label class="block text-sm font-bold mb-2">2. 費目の追加</label>
+                        <div class="space-y-2">
+                            <input type="text" id="cat-name" class="w-full bg-slate-100 px-3 py-2 rounded-lg text-sm" placeholder="費目名 (例: 家賃)">
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="cat-target" class="bg-slate-100 px-3 py-2 rounded-lg text-sm" placeholder="目標予算">
+                                <select id="cat-account" class="bg-slate-100 px-3 py-2 rounded-lg text-sm"></select>
+                            </div>
+                            <button onclick="addCategory()" class="w-full bg-indigo-100 text-indigo-700 py-2 rounded-lg text-sm font-bold">費目を保存する</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="bg-white rounded-2xl p-4 shadow-sm">
+                <h3 class="text-sm font-bold mb-3 text-slate-500">現在の登録一覧</h3>
+                <div id="category-list" class="space-y-2"></div>
+            </section>
+        </div>
+
     </main>
 
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 shadow-2xl">
+        <button onclick="showTab('input')" class="flex flex-col items-center text-indigo-600">
+            <i data-lucide="calculator"></i>
+            <span class="text-[10px] font-bold">入力・計算</span>
+        </button>
+        <button onclick="showTab('master')" class="flex flex-col items-center text-slate-400">
+            <i data-lucide="settings"></i>
+            <span class="text-[10px] font-bold">設定</span>
+        </button>
+    </nav>
+
     <script>
-        // 設定値（本来はマスタ画面で作るもの）
-        const master = {
-            fixed: [
-                { name: '家賃・光熱費', target: 120000, account: '共通口座' },
-                { name: '夫クレカ（食費等）', target: 50000, account: '夫引落口座' }
-            ],
-            variable: [
-                { name: '日用品（妻支払）', target: 20000, account: '妻引落口座' }
-            ]
+        // データの保存先 (LocalStorage)
+        let appData = JSON.parse(localStorage.getItem('kakei_data')) || {
+            accounts: ['共通口座', '夫個人口座'],
+            categories: []
         };
 
-        function calculate() {
-            const h = Number(document.getElementById('inc-h').value);
-            const w = Number(document.getElementById('inc-w').value);
-            const resultDiv = document.getElementById('result-section');
-            const listDiv = document.getElementById('remittance-list');
-            const statusDiv = document.getElementById('status-list');
+        function save() {
+            localStorage.setItem('kakei_data', JSON.stringify(appData));
+            renderMaster();
+        }
 
-            listDiv.innerHTML = '';
-            statusDiv.innerHTML = '';
-            resultDiv.classList.remove('hidden');
-
-            // 送金シミュレーション（簡易ロジック）
-            master.fixed.forEach(item => {
-                const card = `
-                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500 flex justify-between items-center">
-                        <div>
-                            <p class="text-xs text-slate-400">夫の給与 → ${item.account}</p>
-                            <p class="font-bold">${item.name}</p>
-                        </div>
-                        <p class="text-lg font-black text-indigo-600">¥${item.target.toLocaleString()}</p>
-                    </div>
-                `;
-                listDiv.innerHTML += card;
-
-                const status = `
-                    <div class="flex justify-between">
-                        <span>${item.name}</span>
-                        <span class="font-medium">目標 ¥${item.target.toLocaleString()} </span>
-                    </div>
-                `;
-                statusDiv.innerHTML += status;
-            });
-
+        // 画面切り替え
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
             lucide.createIcons();
         }
+
+        // マスタ管理
+        function addAccount() {
+            const name = document.getElementById('new-account').value;
+            if(name) {
+                appData.accounts.push(name);
+                document.getElementById('new-account').value = '';
+                save();
+            }
+        }
+
+        function addCategory() {
+            const name = document.getElementById('cat-name').value;
+            const target = Number(document.getElementById('cat-target').value);
+            const account = document.getElementById('cat-account').value;
+            if(name && target) {
+                appData.categories.push({ name, target, account });
+                document.getElementById('cat-name').value = '';
+                document.getElementById('cat-target').value = '';
+                save();
+            }
+        }
+
+        function renderMaster() {
+            // 口座タグの表示
+            const tags = document.getElementById('account-tags');
+            tags.innerHTML = appData.accounts.map(a => `<span class="bg-slate-200 px-2 py-1 rounded text-xs">${a}</span>`).join('');
+            
+            // 費目登録用の口座選択肢
+            const select = document.getElementById('cat-account');
+            select.innerHTML = appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+
+            // 費目一覧の表示
+            const list = document.getElementById('category-list');
+            list.innerHTML = appData.categories.map((c, i) => `
+                <div class="flex justify-between items-center text-sm p-2 bg-slate-50 rounded">
+                    <span>${c.name} (¥${c.target.toLocaleString()}) → ${c.account}</span>
+                    <button onclick="deleteCat(${i})" class="text-red-400 font-bold">×</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteCat(i) {
+            appData.categories.splice(i, 1);
+            save();
+        }
+
+        // 計算ロジック
+        function calculate() {
+            const resultArea = document.getElementById('result-area');
+            const remList = document.getElementById('remittance-list');
+            const statList = document.getElementById('status-list');
+            
+            resultArea.classList.remove('hidden');
+            remList.innerHTML = '';
+            statList.innerHTML = '';
+
+            // 口座ごとの合計金額を計算
+            const summary = {};
+            appData.categories.forEach(c => {
+                summary[c.account] = (summary[c.account] || 0) + c.target;
+            });
+
+            // 送金カードの生成
+            for (const [acc, amt] of Object.entries(summary)) {
+                remList.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500 flex justify-between items-center">
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">SEND TO</p>
+                            <p class="font-bold text-slate-700">${acc}</p>
+                        </div>
+                        <p class="text-xl font-black text-indigo-600">¥${amt.toLocaleString()}</p>
+                    </div>
+                `;
+            }
+
+            // 予算状況（目標オーバーチェック）
+            appData.categories.forEach(c => {
+                statList.innerHTML += `
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="font-bold">${c.name}</span>
+                            <span class="text-slate-500 italic">Target: ¥${c.target.toLocaleString()}</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div class="bg-indigo-500 h-full" style="width: 100%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        // 初期化
+        renderMaster();
         lucide.createIcons();
     </script>
 </body>
