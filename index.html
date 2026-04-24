@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計・送金マネージャー 決定版</title>
+    <title>夫婦の家計管理・送金マネージャー v6 (Final)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -13,316 +13,282 @@
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans pb-28">
+<body class="bg-slate-50 text-slate-900 font-sans pb-28">
 
-    <header class="bg-indigo-600 text-white p-5 shadow-lg mb-4 flex justify-between items-center rounded-b-[2rem]">
+    <header class="bg-indigo-700 text-white p-6 shadow-xl mb-4 rounded-b-[2.5rem] flex justify-between items-center">
         <div>
-            <p class="text-[10px] font-bold opacity-70 uppercase tracking-widest">Household Budget</p>
-            <h1 class="text-xl font-black">家計マネージャー</h1>
+            <h1 class="text-xl font-black italic tracking-tighter">FINANCE ARCHITECT</h1>
+            <p id="display-date" class="text-[10px] font-bold opacity-60 uppercase"></p>
         </div>
-        <div id="current-month" class="text-xs font-black bg-white/20 px-4 py-2 rounded-2xl backdrop-blur-md">2026.04</div>
+        <div class="bg-white/20 p-2 rounded-full"><i data-lucide="database" class="w-5 h-5"></i></div>
     </header>
 
     <main class="max-w-md mx-auto px-4">
         
         <div id="tab-top" class="tab-content active space-y-6">
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-around items-center">
-                <div class="text-center">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">月間予算額</p>
-                    <p id="top-total-budget" class="text-2xl font-black text-indigo-600">¥0</p>
-                </div>
-                <div class="w-[1px] h-10 bg-slate-100"></div>
-                <div class="text-center">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">登録項目</p>
-                    <p id="top-cat-count" class="text-2xl font-black text-slate-700">0</p>
-                </div>
-            </div>
-            
-            <section class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
-                <div class="relative z-10">
-                    <p class="text-xs font-bold text-indigo-400 mb-2">💡 浪費防止アドバイス</p>
-                    <p class="text-sm leading-relaxed opacity-90">
-                        「計算」タブで実績を入力してみましょう。<br>目標オーバーを可視化することが、貯蓄への第一歩です。
-                    </p>
-                </div>
-                <div class="absolute -right-6 -bottom-6 text-white/5 italic font-black text-8xl">SAVE</div>
+            <section class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <h2 class="text-xs font-black text-slate-400 mb-4 uppercase">貯蓄カテゴリー別状況</h2>
+                <div id="top-savings-list" class="space-y-3"></div>
             </section>
 
-            <div class="bg-white p-4 rounded-2xl border border-dashed border-slate-300">
-                <p class="text-[10px] font-bold text-slate-400 mb-3 text-center uppercase">Data Management</p>
-                <div class="flex gap-2">
-                    <button onclick="exportData()" class="flex-1 bg-slate-100 text-slate-600 py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1">
-                        <i data-lucide="download" class="w-3 h-3"></i> データを保存
-                    </button>
-                    <label class="flex-1 bg-slate-100 text-slate-600 py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer text-center">
-                        <i data-lucide="upload" class="w-3 h-3"></i> データを復元
-                        <input type="file" onchange="importData(event)" class="hidden">
-                    </label>
-                </div>
-            </div>
+            <section class="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl overflow-hidden relative">
+                <h2 class="text-xs font-black opacity-50 mb-4 uppercase tracking-widest">直近三ヶ月の収支サマリ</h2>
+                <div id="top-history-list" class="space-y-4">
+                    </div>
+                <div class="absolute -right-4 -bottom-4 text-white/5 italic font-black text-7xl select-none">LOG</div>
+            </section>
         </div>
 
         <div id="tab-input" class="tab-content space-y-6">
             <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
                 <div class="flex justify-between items-center mb-6">
-                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Earnings</span>
-                    <select id="income-type" class="bg-slate-50 px-4 py-2 rounded-xl text-xs font-black text-indigo-600 outline-none border-none">
-                        <option value="Salary">毎月の給与</option>
-                        <option value="Bonus">賞与 (6/12月)</option>
-                        <option value="Extra">臨時収入</option>
-                    </select>
+                    <h2 class="text-sm font-black text-indigo-600 uppercase">Input & Analysis</h2>
+                    <select id="income-selector" onchange="refreshViewByIncome()" class="bg-slate-100 px-3 py-2 rounded-xl text-xs font-bold outline-none border-none"></select>
                 </div>
                 
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-slate-50 p-4 rounded-2xl border border-transparent focus-within:border-indigo-200 transition-all">
-                            <label class="block text-[10px] font-bold text-slate-400 mb-1">夫の収入</label>
+                        <div class="bg-slate-50 p-4 rounded-2xl">
+                            <label class="block text-[10px] font-bold text-slate-400 mb-1">夫 収入</label>
                             <input type="number" id="inc-h" class="w-full bg-transparent text-xl font-black outline-none" placeholder="0">
                         </div>
-                        <div class="bg-slate-50 p-4 rounded-2xl border border-transparent focus-within:border-indigo-200 transition-all">
-                            <label class="block text-[10px] font-bold text-slate-400 mb-1">妻の収入</label>
+                        <div class="bg-slate-50 p-4 rounded-2xl">
+                            <label class="block text-[10px] font-bold text-slate-400 mb-1">妻 収入</label>
                             <input type="number" id="inc-w" class="w-full bg-transparent text-xl font-black outline-none" placeholder="0">
                         </div>
                     </div>
-                    <button onclick="calculate()" class="w-full bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black hover:bg-indigo-700 shadow-lg active:scale-95 transition-all">
-                        計算・分析を実行
+                    <button onclick="calculateAndSave()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg active:scale-95 transition-all">
+                        計算・履歴に保存
                     </button>
                 </div>
             </section>
 
             <div id="result-area" class="hidden space-y-8 pb-10">
                 <div>
-                    <h3 class="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-widest flex items-center gap-2">
-                        <i data-lucide="send" class="w-3 h-3 text-indigo-500"></i> Remittance Guide
-                    </h3>
-                    <div id="remittance-list" class="space-y-3"></div>
+                    <h3 class="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-widest">送金指示 (Transfer Guide)</h3>
+                    <div id="remittance-list" class="space-y-2"></div>
                 </div>
-                
-                <section class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                    <h3 class="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest text-center">Spending Check</h3>
-                    <div id="status-list" class="space-y-6"></div>
-                </section>
+                <div id="expense-fields" class="space-y-4"></div>
             </div>
         </div>
 
         <div id="tab-master" class="tab-content space-y-6">
-            <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-                <h2 class="text-sm font-black mb-6 text-indigo-700 uppercase tracking-widest">Master Settings</h2>
-                
-                <div class="space-y-6">
-                    <div>
-                        <label class="block text-xs font-bold mb-3 text-slate-500">1. 口座・銀行名の追加</label>
-                        <div class="flex gap-2 mb-4">
-                            <input type="text" id="new-account" class="flex-1 bg-slate-50 px-4 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-indigo-100 transition-all" placeholder="例: 三菱UFJ（給与）">
-                            <button onclick="addAccount()" class="bg-slate-800 text-white px-5 py-3 rounded-xl text-xs font-bold">追加</button>
-                        </div>
-                        <div id="account-tags" class="flex flex-wrap gap-2"></div>
-                    </div>
+            <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
+                <h3 class="text-xs font-black text-indigo-600 uppercase">口座設定</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="new-account" class="flex-1 bg-slate-100 px-4 py-2 rounded-xl text-sm" placeholder="銀行・口座名">
+                    <button onclick="addAccount()" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">追加</button>
+                </div>
+                <div id="account-tags" class="flex flex-wrap gap-2"></div>
+            </section>
 
-                    <hr class="border-slate-50">
-
-                    <div>
-                        <label class="block text-xs font-bold mb-3 text-slate-500">2. 支払ルールの作成</label>
-                        <div class="space-y-3">
-                            <input type="text" id="cat-name" class="w-full bg-slate-50 px-4 py-4 rounded-xl text-sm outline-none" placeholder="費目名 (例: 家賃)">
-                            <div class="grid grid-cols-2 gap-3">
-                                <input type="number" id="cat-target" class="bg-slate-50 px-4 py-4 rounded-xl text-sm outline-none" placeholder="目標金額">
-                                <select id="cat-account" class="bg-slate-50 px-4 py-4 rounded-xl text-sm outline-none font-bold text-indigo-600"></select>
-                            </div>
-                            <div class="bg-indigo-50 p-4 rounded-2xl flex justify-between items-center">
-                                <span class="text-xs font-bold text-indigo-400 uppercase">担当者</span>
-                                <div class="flex gap-6">
-                                    <label class="flex items-center gap-2 text-sm font-bold cursor-pointer"><input type="radio" name="payer" value="夫" checked class="accent-indigo-600"> 夫</label>
-                                    <label class="flex items-center gap-2 text-sm font-bold cursor-pointer"><input type="radio" name="payer" value="妻" class="accent-indigo-600"> 妻</label>
-                                </div>
-                            </div>
-                            <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-4 rounded-xl text-sm font-black shadow-md hover:bg-indigo-700 transition-all">この費目を登録</button>
+            <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
+                <h3 class="text-xs font-black text-indigo-600 uppercase">費目・ルール登録</h3>
+                <div class="space-y-3">
+                    <input type="text" id="cat-name" class="w-full bg-slate-50 px-4 py-3 rounded-xl text-sm outline-none" placeholder="費目名">
+                    <div class="grid grid-cols-2 gap-2">
+                        <select id="cat-income-type" class="bg-slate-50 px-3 py-3 rounded-xl text-xs font-bold">
+                            <option value="給与">給与時</option>
+                            <option value="賞与">賞与時</option>
+                            <option value="臨時">臨時収入時</option>
+                        </select>
+                        <select id="cat-exp-type" class="bg-slate-50 px-3 py-3 rounded-xl text-xs font-bold">
+                            <option value="固定費">固定費</option>
+                            <option value="変動費">変動費</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" id="cat-target" class="bg-slate-50 px-4 py-3 rounded-xl text-sm outline-none" placeholder="目標金額">
+                        <select id="cat-account" class="bg-slate-50 px-3 py-3 rounded-xl text-xs font-bold"></select>
+                    </div>
+                    <div class="bg-indigo-50 p-3 rounded-xl flex justify-between items-center">
+                        <span class="text-[10px] font-bold text-indigo-400">担当者</span>
+                        <div class="flex gap-4">
+                            <label class="text-xs font-bold flex items-center gap-1"><input type="radio" name="payer" value="夫" checked> 夫</label>
+                            <label class="text-xs font-bold flex items-center gap-1"><input type="radio" name="payer" value="妻"> 妻</label>
                         </div>
                     </div>
+                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-sm font-black">費目を登録</button>
                 </div>
             </section>
-            
-            <div id="category-list" class="space-y-3"></div>
-        </div>
 
+            <div id="category-list" class="space-y-2"></div>
+            
+            <button onclick="clearHistory()" class="w-full text-red-400 text-[10px] font-bold py-4">履歴をすべて削除する</button>
+        </div>
     </main>
 
-    <nav class="fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-xl border border-white/20 flex justify-around p-3 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-[2rem] z-50">
-        <button onclick="showTab('top')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="top">
-            <div class="icon-box"><i data-lucide="home"></i></div>
-            <span class="text-[9px] font-black mt-1 uppercase">Top</span>
-        </button>
-        <button onclick="showTab('input')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="input">
-            <div class="icon-box"><i data-lucide="calculator"></i></div>
-            <span class="text-[9px] font-black mt-1 uppercase">Calc</span>
-        </button>
-        <button onclick="showTab('master')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="master">
-            <div class="icon-box"><i data-lucide="sliders"></i></div>
-            <span class="text-[9px] font-black mt-1 uppercase">Setup</span>
-        </button>
+    <nav class="fixed bottom-6 left-4 right-4 bg-white border border-slate-100 flex justify-around p-3 shadow-2xl rounded-3xl z-50">
+        <button onclick="showTab('top')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="top"><i data-lucide="bar-chart-3"></i><span class="text-[9px] font-bold mt-1 uppercase tracking-widest">Summary</span></button>
+        <button onclick="showTab('input')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="input"><i data-lucide="pocket"></i><span class="text-[9px] font-bold mt-1 uppercase tracking-widest">Detail</span></button>
+        <button onclick="showTab('master')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="master"><i data-lucide="settings-2"></i><span class="text-[9px] font-bold mt-1 uppercase tracking-widest">Master</span></button>
     </nav>
 
     <script>
-        // データ読み込み（v3からの移行を考慮）
-        let appData = JSON.parse(localStorage.getItem('kakei_data_v4')) || 
-                      JSON.parse(localStorage.getItem('kakei_data_v3')) || {
-            accounts: ['三菱UFJ', '楽天銀行（共通）', '三井住友'],
-            categories: []
+        const now = new Date();
+        // データ構造 v6
+        let appData = JSON.parse(localStorage.getItem('kakei_v6_data')) || {
+            accounts: ['共通口座', '夫個人', '妻個人'],
+            categories: [], // {name, incomeType, expType, target, account, payer}
+            history: [] // {date, type, incomeH, incomeW, totalExp, savings}
         };
 
+        const incomeTypes = ["給与", "賞与", "臨時"];
+
         function save() {
-            localStorage.setItem('kakei_data_v4', JSON.stringify(appData));
+            localStorage.setItem('kakei_v6_data', JSON.stringify(appData));
             renderMaster();
             renderTop();
         }
 
-        function showTab(tabId) {
+        function showTab(id) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.getElementById('tab-' + tabId).classList.add('active');
-            
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                const isActive = btn.dataset.tab === tabId;
-                btn.style.color = isActive ? '#4f46e5' : '#94a3b8';
-            });
+            document.getElementById('tab-' + id).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.style.color = b.dataset.tab === id ? '#4f46e5' : '#94a3b8');
             lucide.createIcons();
-            window.scrollTo(0, 0);
+            if(id === 'input') setupIncomeSelector();
+        }
+
+        function setupIncomeSelector() {
+            const sel = document.getElementById('income-selector');
+            const month = now.getMonth() + 1;
+            sel.innerHTML = incomeTypes.map(t => {
+                const disabled = (t === "賞与" && month !== 6 && month !== 12) ? "disabled" : "";
+                return `<option value="${t}" ${disabled}>${t}管理</option>`;
+            }).join('');
+        }
+
+        function refreshViewByIncome() {
+            document.getElementById('result-area').classList.add('hidden');
         }
 
         // マスタ操作
         function addAccount() {
-            const val = document.getElementById('new-account').value.trim();
-            if(val) {
-                appData.accounts.push(val);
-                document.getElementById('new-account').value = '';
-                save();
-            }
+            const val = document.getElementById('new-account').value;
+            if(val) { appData.accounts.push(val); document.getElementById('new-account').value=''; save(); }
         }
 
         function addCategory() {
-            const name = document.getElementById('cat-name').value.trim();
+            const name = document.getElementById('cat-name').value;
+            const incomeType = document.getElementById('cat-income-type').value;
+            const expType = document.getElementById('cat-exp-type').value;
             const target = Number(document.getElementById('cat-target').value);
             const account = document.getElementById('cat-account').value;
             const payer = document.querySelector('input[name="payer"]:checked').value;
             if(name && target > 0) {
-                appData.categories.push({ name, target, account, payer });
-                document.getElementById('cat-name').value = '';
-                document.getElementById('cat-target').value = '';
-                save();
+                appData.categories.push({ name, incomeType, expType, target, account, payer });
+                document.getElementById('cat-name').value=''; document.getElementById('cat-target').value=''; save();
             }
         }
 
-        function deleteCat(i) {
-            if(confirm('削除しますか？')) {
-                appData.categories.splice(i, 1);
-                save();
-            }
-        }
+        function deleteCat(i) { appData.categories.splice(i,1); save(); }
 
-        // 描画関連
         function renderMaster() {
-            document.getElementById('account-tags').innerHTML = appData.accounts.map(a => `<span class="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-slate-200">${a}</span>`).join('');
+            document.getElementById('account-tags').innerHTML = appData.accounts.map(a => `<span class="bg-slate-50 border px-3 py-1 rounded-full text-[10px] font-bold">${a}</span>`).join('');
             document.getElementById('cat-account').innerHTML = appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
-            
-            const list = document.getElementById('category-list');
-            list.innerHTML = appData.categories.map((c, i) => `
-                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center group">
+            document.getElementById('category-list').innerHTML = appData.categories.map((c, i) => `
+                <div class="bg-white p-4 rounded-2xl flex justify-between items-center text-xs shadow-sm border border-slate-100">
                     <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black uppercase">${c.payer}担当</span>
-                            <h4 class="font-black text-slate-700">${c.name}</h4>
-                        </div>
-                        <p class="text-[10px] font-bold text-slate-400">¥${c.target.toLocaleString()} ➔ ${c.account}</p>
+                        <span class="text-[9px] font-black text-indigo-500 uppercase">${c.incomeType} / ${c.expType} / ${c.payer}担当</span>
+                        <p class="font-black">${c.name} (¥${c.target.toLocaleString()})</p>
+                        <p class="text-slate-400 text-[10px]">${c.account}</p>
                     </div>
-                    <button onclick="deleteCat(${i})" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    <button onclick="deleteCat(${i})" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </div>
             `).join('');
             lucide.createIcons();
         }
 
-        function renderTop() {
-            const total = appData.categories.reduce((s, c) => s + c.target, 0);
-            document.getElementById('top-total-budget').innerText = `¥${total.toLocaleString()}`;
-            document.getElementById('top-cat-count').innerText = `${appData.categories.length}`;
-        }
-
-        // 計算
-        function calculate() {
-            const res = document.getElementById('result-area');
+        // 計算 & 履歴保存
+        function calculateAndSave() {
+            const type = document.getElementById('income-selector').value;
+            const incH = Number(document.getElementById('inc-h').value);
+            const incW = Number(document.getElementById('inc-w').value);
+            const resArea = document.getElementById('result-area');
             const remList = document.getElementById('remittance-list');
-            const statList = document.getElementById('status-list');
-            res.classList.remove('hidden');
-            remList.innerHTML = ''; statList.innerHTML = '';
+            const expFields = document.getElementById('expense-fields');
 
-            const remSummary = {};
-            appData.categories.forEach(c => {
-                const key = `${c.payer}給与口座 ➔ ${c.account}`;
-                remSummary[key] = (remSummary[key] || 0) + c.target;
+            resArea.classList.remove('hidden');
+            remList.innerHTML = ''; expFields.innerHTML = '';
+
+            const filteredCats = appData.categories.filter(c => c.incomeType === type);
+            const totalExp = filteredCats.reduce((s, c) => s + c.target, 0);
+            const savings = (incH + incW) - totalExp;
+
+            // 送金合計表示
+            const remSum = {};
+            filteredCats.forEach(c => {
+                const key = `${c.payer} ➔ ${c.account}`;
+                remSum[key] = (remSum[key] || 0) + c.target;
             });
-
-            for (const [key, amt] of Object.entries(remSummary)) {
-                const [from, to] = key.split(' ➔ ');
-                remList.innerHTML += `
-                    <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center relative overflow-hidden">
-                        <div class="z-10">
-                            <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">${from}</p>
-                            <p class="font-black text-slate-700 text-sm">移動先: ${to}</p>
-                        </div>
-                        <p class="text-xl font-black text-indigo-600 z-10">¥${amt.toLocaleString()}</p>
-                        <i data-lucide="arrow-right" class="absolute -left-2 top-1/2 -translate-y-1/2 w-12 h-12 text-slate-50 opacity-10"></i>
-                    </div>
-                `;
+            for (const [key, amt] of Object.entries(remSum)) {
+                remList.innerHTML += `<div class="flex justify-between p-3 bg-indigo-50 rounded-xl text-xs"><span class="font-bold text-slate-600">${key}</span><span class="font-black text-indigo-600 font-mono">¥${amt.toLocaleString()}</span></div>`;
             }
 
-            appData.categories.forEach((c, i) => {
-                statList.innerHTML += `
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-end">
-                            <span class="text-xs font-black text-slate-600">${c.name} <span class="text-[10px] text-slate-300 font-normal ml-2">TARGET: ¥${c.target.toLocaleString()}</span></span>
-                            <input type="number" oninput="checkOver(${i}, this.value, ${c.target})" 
-                                   class="bg-slate-50 px-4 py-2 rounded-xl text-xs font-black w-28 text-right outline-none ring-1 ring-slate-200" 
-                                   placeholder="実績額を入力">
+            // 実績入力フィールド生成
+            filteredCats.forEach((c, i) => {
+                expFields.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                        <div class="flex justify-between items-end mb-2">
+                            <span class="text-xs font-black">${c.name} <span class="text-[9px] text-slate-400 font-normal ml-1">目標: ¥${c.target.toLocaleString()}</span></span>
+                            <input type="number" oninput="checkOver(${i}, this.value, ${c.target})" class="w-24 bg-slate-50 px-2 py-1 rounded text-right text-xs font-bold outline-none" placeholder="実績入力">
                         </div>
-                        <div class="w-full bg-slate-100 h-2 rounded-full">
-                            <div id="bar-${i}" class="bg-indigo-500 h-full transition-all duration-500 rounded-full" style="width: 0%"></div>
-                        </div>
+                        <div class="w-full bg-slate-100 h-1 rounded-full"><div id="bar-${i}" class="bg-indigo-500 h-full transition-all" style="width:0%"></div></div>
                     </div>
                 `;
             });
+
+            // 履歴に保存 (同じ月・種類の履歴があれば上書き、なければ追加)
+            const dateStr = `${now.getFullYear()}.${now.getMonth() + 1}`;
+            const existingIdx = appData.history.findIndex(h => h.date === dateStr && h.type === type);
+            const historyEntry = { date: dateStr, type, incomeH: incH, incomeW: incW, totalExp, savings };
+            
+            if(existingIdx >= 0) appData.history[existingIdx] = historyEntry;
+            else appData.history.push(historyEntry);
+            
+            save();
             lucide.createIcons();
-            setTimeout(() => window.scrollTo({ top: 500, behavior: 'smooth' }), 100);
+            window.scrollTo({top: 400, behavior: 'smooth'});
         }
 
-        function checkOver(i, val, target) {
+        function checkOver(i, v, t) {
             const bar = document.getElementById(`bar-${i}`);
-            const v = Number(val);
-            const p = Math.min((v / target) * 100, 100);
-            bar.style.width = p + '%';
-            bar.style.backgroundColor = v > target ? '#ef4444' : '#4f46e5';
+            const val = Number(v);
+            bar.style.width = Math.min((val/t)*100, 100) + '%';
+            bar.style.backgroundColor = val > t ? '#ef4444' : '#6366f1';
         }
 
-        // インポート・エクスポート
-        function exportData() {
-            const blob = new Blob([JSON.stringify(appData)], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `kakei_backup_${new Date().toLocaleDateString()}.json`;
-            a.click();
+        // TOP画面描画
+        function renderTop() {
+            document.getElementById('display-date').innerText = `${now.getFullYear()}.${now.getMonth() + 1} AS OF TODAY`;
+            
+            // カテゴリー別貯蓄 (マスタ目標ベースの集計)
+            const accSum = {};
+            appData.categories.forEach(c => accSum[c.account] = (accSum[c.account] || 0) + c.target);
+            document.getElementById('top-savings-list').innerHTML = Object.entries(accSum).length ? 
+                Object.entries(accSum).map(([acc, val]) => `
+                    <div class="flex justify-between items-center border-b border-slate-50 pb-2">
+                        <span class="text-xs font-medium text-slate-500">${acc}</span>
+                        <span class="text-sm font-black">¥${val.toLocaleString()}</span>
+                    </div>`).join('') : '<p class="text-[10px] text-slate-300 text-center">データなし</p>';
+
+            // 履歴表示 (直近3件)
+            const historyList = [...appData.history].reverse().slice(0, 3);
+            document.getElementById('top-history-list').innerHTML = historyList.length ? 
+                historyList.map(h => `
+                    <div class="flex justify-between items-center bg-white/5 p-3 rounded-2xl border border-white/10">
+                        <div>
+                            <p class="text-[9px] font-black opacity-50 uppercase">${h.date} - ${h.type}</p>
+                            <p class="text-[10px] font-bold">収入合計: ¥${(h.incomeH + h.incomeW).toLocaleString()}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[9px] opacity-50 uppercase font-black">Est. Savings</p>
+                            <p class="text-sm font-black text-indigo-400">¥${h.savings.toLocaleString()}</p>
+                        </div>
+                    </div>`).join('') : '<p class="text-[10px] opacity-40 text-center py-4">過去の履歴はありません</p>';
         }
 
-        function importData(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    appData = JSON.parse(event.target.result);
-                    save();
-                    alert('データを復元しました');
-                    showTab('top');
-                } catch (err) { alert('読み込みに失敗しました'); }
-            };
-            reader.readAsText(file);
-        }
+        function clearHistory() { if(confirm('全履歴と設定を消去しますか？')) { localStorage.removeItem('kakei_v6_data'); location.reload(); } }
 
         window.onload = () => { renderMaster(); renderTop(); showTab('top'); };
     </script>
