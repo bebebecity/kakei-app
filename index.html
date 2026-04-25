@@ -3,282 +3,353 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計管理マネージャー v8</title>
+    <title>家計管理アプリ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        /* 目標超過時のアラートスタイル */
+        .is-over { 
+            background-color: #fef2f2 !important; 
+            border-color: #ef4444 !important; 
+            color: #b91c1c !important; 
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans pb-40">
+<body class="bg-slate-50 text-slate-800 font-sans pb-24">
 
-    <header class="bg-indigo-700 text-white p-6 shadow-xl mb-4 rounded-b-[2.5rem] flex justify-between items-center">
-        <div>
-            <h1 class="text-xl font-black italic tracking-tighter uppercase">Finance Manager</h1>
-            <div class="flex items-center gap-2 mt-1">
-                <input type="month" id="target-month" onchange="changeMonth()" class="bg-white/20 text-xs font-bold border-none rounded-lg px-2 py-1 outline-none">
-            </div>
-        </div>
-        <i data-lucide="activity" class="w-5 h-5 opacity-50"></i>
+    <header class="bg-indigo-600 text-white p-5 shadow-md flex justify-between items-center">
+        <h1 class="text-lg font-bold">家計管理マネージャー</h1>
+        <input type="month" id="month-select" onchange="renderCalc()" class="bg-white/20 text-sm border-none rounded px-2 py-1 outline-none text-white">
     </header>
 
-    <main class="max-w-md mx-auto px-4">
+    <main class="max-w-md mx-auto p-4">
         
-        <div id="tab-top" class="tab-content active space-y-6">
-            <section class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                <h2 class="text-xs font-black text-slate-400 mb-4 uppercase">カテゴリー別・目標集計</h2>
-                <div id="top-savings-list" class="space-y-3"></div>
-            </section>
-
-            <section class="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl relative overflow-hidden">
-                <h2 class="text-xs font-black opacity-50 mb-4 uppercase tracking-widest">直近三ヶ月の履歴</h2>
-                <div id="top-history-list" class="space-y-4"></div>
-            </section>
-        </div>
-
-        <div id="tab-input" class="tab-content space-y-6">
-            <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-sm font-black text-indigo-600 uppercase">Analysis</h2>
-                    <select id="income-selector" onchange="loadMonthlyData()" class="bg-slate-100 px-3 py-2 rounded-xl text-xs font-bold outline-none border-none"></select>
+        <div id="tab-calc" class="tab-content active space-y-6">
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold text-indigo-600">収入入力</h2>
+                    <select id="type-select" onchange="renderCalc()" class="bg-slate-100 px-2 py-1 rounded text-sm outline-none">
+                        <option value="給与">給与</option>
+                        <option value="賞与">賞与</option>
+                        <option value="臨時">臨時</option>
+                    </select>
                 </div>
-                
                 <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-slate-50 p-4 rounded-2xl">
-                        <label class="block text-[10px] font-bold text-slate-400 mb-1">夫 収入</label>
-                        <input type="number" id="inc-h" class="w-full bg-transparent text-xl font-black outline-none" placeholder="0">
+                    <div>
+                        <label class="text-xs text-slate-500 font-bold">夫 収入</label>
+                        <input type="number" id="inc-h" oninput="liveCalculate()" class="w-full text-lg font-bold border-b-2 border-slate-200 focus:border-indigo-500 outline-none py-1" placeholder="0">
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-2xl">
-                        <label class="block text-[10px] font-bold text-slate-400 mb-1">妻 収入</label>
-                        <input type="number" id="inc-w" class="w-full bg-transparent text-xl font-black outline-none" placeholder="0">
+                    <div>
+                        <label class="text-xs text-slate-500 font-bold">妻 収入</label>
+                        <input type="number" id="inc-w" oninput="liveCalculate()" class="w-full text-lg font-bold border-b-2 border-slate-200 focus:border-indigo-500 outline-none py-1" placeholder="0">
                     </div>
                 </div>
             </section>
 
-            <div id="input-fields-area" class="space-y-6"></div>
+            <section class="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+                <h3 class="text-xs font-bold text-indigo-400 mb-3">送金指示（マスタ設定より自動集計）</h3>
+                <div id="transfer-list" class="space-y-2 mb-3">
+                    </div>
+                <div class="flex justify-between border-t border-indigo-200 pt-3 text-sm font-bold">
+                    <span>残金 (収入 - 総支出)</span>
+                    <span id="remaining-amount" class="text-indigo-700">¥0</span>
+                </div>
+            </section>
 
-            <div class="flex justify-center py-8">
-                <button onclick="saveCurrentMonthData()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg active:scale-95 transition-all">
-                    現在のデータを保存・更新
-                </button>
-            </div>
+            <section>
+                <h3 class="text-sm font-bold text-slate-600 mb-3">支出実績</h3>
+                <div id="expense-list" class="space-y-3">
+                    </div>
+            </section>
         </div>
 
         <div id="tab-master" class="tab-content space-y-6">
-            <div class="flex gap-2">
-                <button onclick="exportData()" class="flex-1 bg-white border border-slate-200 py-3 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"><i data-lucide="download" class="w-3 h-3"></i> エクスポート</button>
-                <label class="flex-1 bg-white border border-slate-200 py-3 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 cursor-pointer">
-                    <i data-lucide="upload" class="w-3 h-3"></i> インポート
-                    <input type="file" onchange="importData(event)" class="hidden">
-                </label>
-            </div>
-
-            <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
-                <h3 class="text-xs font-black text-indigo-600 uppercase">口座設定</h3>
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <h3 class="font-bold text-indigo-600">口座追加</h3>
                 <div class="flex gap-2">
-                    <input type="text" id="new-account" class="flex-1 bg-slate-100 px-4 py-2 rounded-xl text-sm outline-none" placeholder="銀行名・口座名">
-                    <button onclick="addAccount()" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">追加</button>
+                    <input type="text" id="new-account" class="flex-1 bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-200 outline-none" placeholder="口座名">
+                    <button onclick="addAccount()" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold">追加</button>
                 </div>
-                <div id="account-tags" class="flex flex-wrap gap-2"></div>
+                <div id="account-tags" class="flex flex-wrap gap-2 mt-2"></div>
             </section>
 
-            <section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
-                <h3 class="text-xs font-black text-indigo-600 uppercase">費目登録</h3>
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <h3 class="font-bold text-indigo-600">費目登録</h3>
                 <div class="space-y-3">
-                    <input type="text" id="cat-name" class="w-full bg-slate-50 px-4 py-3 rounded-xl text-sm" placeholder="費目名">
+                    <input type="text" id="cat-name" class="w-full bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-200 outline-none" placeholder="費目名">
                     <div class="grid grid-cols-2 gap-2">
-                        <select id="cat-income-type" class="bg-slate-50 px-3 py-3 rounded-xl text-xs font-bold">
-                            <option value="給与">給与</option><option value="賞与">賞与</option><option value="臨時">臨時</option>
-                        </select>
-                        <select id="cat-exp-type" class="bg-slate-50 px-3 py-3 rounded-xl text-xs font-bold">
-                            <option value="固定費">固定費</option><option value="変動費">変動費</option>
-                        </select>
+                        <select id="cat-inc-type" class="bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-200 outline-none"><option>給与</option><option>賞与</option><option>臨時</option></select>
+                        <select id="cat-exp-type" class="bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-200 outline-none"><option value="固定費">固定費 (実績不要)</option><option value="変動費">変動費</option></select>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <input type="number" id="cat-target" class="bg-slate-50 px-4 py-3 rounded-xl text-sm" placeholder="目標金額">
-                        <select id="cat-account" class="bg-slate-50 px-3 py-3 rounded-xl text-xs font-bold"></select>
+                        <input type="number" id="cat-target" class="bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-200 outline-none" placeholder="目標金額">
+                        <select id="cat-account" class="bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-200 outline-none"></select>
                     </div>
-                    <div class="bg-indigo-50 p-3 rounded-xl flex justify-between items-center text-xs font-bold">
-                        <span class="text-indigo-400">担当</span>
-                        <div class="flex gap-4"><label><input type="radio" name="payer" value="夫" checked> 夫</label><label><input type="radio" name="payer" value="妻"> 妻</label></div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-sm flex gap-4">
+                        <label><input type="radio" name="payer" value="夫" checked> 夫担当</label>
+                        <label><input type="radio" name="payer" value="妻"> 妻担当</label>
                     </div>
-                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-sm font-black">マスタに追加</button>
+                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold text-sm">マスタに登録</button>
                 </div>
             </section>
-            <div id="category-list" class="space-y-2"></div>
+
+            <section>
+                <h3 class="text-sm font-bold text-slate-600 mb-3">登録済み費目マスタ</h3>
+                <div id="master-list" class="space-y-2"></div>
+            </section>
         </div>
     </main>
 
-    <nav class="fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-md border border-slate-100 flex justify-around p-3 shadow-2xl rounded-3xl z-50">
-        <button onclick="showTab('top')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="top"><i data-lucide="layout-grid"></i><span class="text-[9px] font-bold mt-1">TOP</span></button>
-        <button onclick="showTab('input')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="input"><i data-lucide="edit-2"></i><span class="text-[9px] font-bold mt-1">計算</span></button>
-        <button onclick="showTab('master')" class="flex flex-col items-center flex-1 py-1 nav-btn" data-tab="master"><i data-lucide="sliders"></i><span class="text-[9px] font-bold mt-1">設定</span></button>
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 pb-6 z-50">
+        <button onclick="switchTab('calc')" class="nav-btn flex flex-col items-center flex-1 text-indigo-600" data-tab="calc">
+            <i data-lucide="calculator" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">計算</span>
+        </button>
+        <button onclick="switchTab('master')" class="nav-btn flex flex-col items-center flex-1 text-slate-400" data-tab="master">
+            <i data-lucide="settings" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">設定</span>
+        </button>
     </nav>
 
     <script>
-        let appData = JSON.parse(localStorage.getItem('kakei_v8_data')) || {
-            accounts: ['共通口座', '夫個人', '妻個人'],
+        // --- データ管理 ---
+        let appData = JSON.parse(localStorage.getItem('kakei_fixed_db')) || {
+            accounts: ['共通口座', '夫口座', '妻口座'],
             categories: [],
-            monthlyLogs: {}
+            logs: {} // キー例: "2026-04-給与"
         };
 
-        function save() {
-            localStorage.setItem('kakei_v8_data', JSON.stringify(appData));
-            renderMaster();
-            renderTop();
+        function saveData() {
+            localStorage.setItem('kakei_fixed_db', JSON.stringify(appData));
         }
 
+        // --- 初期化 ---
         window.onload = () => {
+            lucide.createIcons();
             const today = new Date();
-            document.getElementById('target-month').value = today.toISOString().slice(0, 7);
-            setupIncomeSelector();
-            renderMaster();
-            renderTop();
-            showTab('top');
+            // 年月を YYYY-MM 形式でセット
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            document.getElementById('month-select').value = `${yyyy}-${mm}`;
+            
+            renderMasterTab();
+            renderCalc();
         };
 
-        function showTab(id) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.getElementById('tab-' + id).classList.add('active');
-            document.querySelectorAll('.nav-btn').forEach(b => b.style.color = b.dataset.tab === id ? '#4f46e5' : '#94a3b8');
-            lucide.createIcons();
-            if(id === 'input') loadMonthlyData();
-        }
-
-        function setupIncomeSelector() {
-            const sel = document.getElementById('income-selector');
-            const month = new Date(document.getElementById('target-month').value).getMonth() + 1;
-            sel.innerHTML = ["給与", "賞与", "臨時"].map(t => {
-                const disabled = (t === "賞与" && month !== 6 && month !== 12) ? "disabled" : "";
-                return `<option value="${t}" ${disabled}>${t}</option>`;
-            }).join('');
-        }
-
-        function changeMonth() { setupIncomeSelector(); if(document.getElementById('tab-input').classList.contains('active')) loadMonthlyData(); renderTop(); }
-
-        // --- 入力・送金警告ロジック ---
-        function loadMonthlyData() {
-            const month = document.getElementById('target-month').value;
-            const type = document.getElementById('income-selector').value;
-            const data = appData.monthlyLogs[month]?.[type] || { incomeH: 0, incomeW: 0, results: {} };
-            document.getElementById('inc-h').value = data.incomeH || "";
-            document.getElementById('inc-w').value = data.incomeW || "";
-            renderInputFields(data.results);
-        }
-
-        function renderInputFields(savedResults) {
-            const type = document.getElementById('income-selector').value;
-            const incH = Number(document.getElementById('inc-h').value);
-            const incW = Number(document.getElementById('inc-w').value);
-            const container = document.getElementById('input-fields-area');
-            container.innerHTML = "";
-
-            const filteredCats = appData.categories.filter(c => c.incomeType === type);
-            const totalTarget = filteredCats.reduce((s, c) => s + c.target, 0);
-            const isOver = (incH + incW) < totalTarget;
-
-            // 送金指示 & 警告
-            let remHtml = `
-                <div class="bg-white p-6 rounded-3xl border ${isOver ? 'border-red-200 bg-red-50' : 'border-indigo-100'} shadow-sm relative">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase">送金指示</h3>
-                        ${isOver ? '<span class="flex items-center gap-1 text-red-500 text-[10px] font-bold"><i data-lucide="alert-triangle" class="w-3 h-3"></i> 収入不足</span>' : ''}
-                    </div>
-                    <div class="space-y-2">`;
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
             
-            const remSum = {};
-            filteredCats.forEach(c => { const key = `${c.payer} ➔ ${c.account}`; remSum[key] = (remSum[key] || 0) + c.target; });
-            for (const [key, amt] of Object.entries(remSum)) {
-                remHtml += `<div class="flex justify-between text-xs font-bold p-2 ${isOver ? 'bg-white/50' : 'bg-indigo-50'} rounded-lg"><span>${key}</span><span>¥${amt.toLocaleString()}</span></div>`;
-            }
-            container.innerHTML += remHtml + `</div></div>`;
-
-            // 支出詳細
-            let expHtml = `<div class="grid gap-3">`;
-            filteredCats.forEach(c => {
-                const isFixed = c.expType === "固定費";
-                expHtml += `
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                        <div>
-                            <span class="text-[8px] font-black ${isFixed ? 'text-slate-300' : 'text-indigo-400'} uppercase">${c.expType}</span>
-                            <h4 class="text-xs font-black">${c.name}</h4>
-                            <p class="text-[9px] text-slate-400">目標 ¥${c.target.toLocaleString()}</p>
-                        </div>
-                        ${isFixed ? '' : `<input type="number" data-cat="${c.name}" class="exp-input w-24 bg-slate-50 px-2 py-2 rounded-xl text-right text-xs font-bold outline-none border border-slate-200" placeholder="実績" value="${savedResults[c.name] || ""}">`}
-                    </div>`;
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if (btn.dataset.tab === tabId) {
+                    btn.classList.add('text-indigo-600');
+                    btn.classList.remove('text-slate-400');
+                } else {
+                    btn.classList.remove('text-indigo-600');
+                    btn.classList.add('text-slate-400');
+                }
             });
-            container.innerHTML += expHtml + `</div>`;
-            lucide.createIcons();
+
+            if (tabId === 'calc') renderCalc();
+            if (tabId === 'master') renderMasterTab();
         }
 
-        function saveCurrentMonthData() {
-            const month = document.getElementById('target-month').value;
-            const type = document.getElementById('income-selector').value;
-            const incH = Number(document.getElementById('inc-h').value);
-            const incW = Number(document.getElementById('inc-w').value);
-            const results = {};
-            document.querySelectorAll('.exp-input').forEach(i => results[i.dataset.cat] = Number(i.value));
-
-            const cats = appData.categories.filter(c => c.incomeType === type);
-            let totalExp = 0;
-            cats.forEach(c => totalExp += (c.expType === "固定費") ? c.target : (results[c.name] || 0));
-
-            if(!appData.monthlyLogs[month]) appData.monthlyLogs[month] = {};
-            appData.monthlyLogs[month][type] = {
-                incomeH: incH, incomeW: incW, results: results,
-                summary: { totalIncome: incH + incW, totalExp: totalExp, savings: (incH + incW) - totalExp }
-            };
-            save(); alert(`${month} データを保存しました`);
+        // --- マスタ処理 ---
+        function addAccount() {
+            const val = document.getElementById('new-account').value;
+            if (val) {
+                appData.accounts.push(val);
+                document.getElementById('new-account').value = '';
+                saveData();
+                renderMasterTab();
+            }
         }
 
-        // --- インポート/エクスポート ---
-        function exportData() {
-            const blob = new Blob([JSON.stringify(appData)], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `kakei_data_${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-        }
-
-        function importData(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                try { appData = JSON.parse(ev.target.result); save(); location.reload(); }
-                catch(err) { alert('読み込みに失敗しました'); }
-            };
-            reader.readAsText(file);
-        }
-
-        // --- マスタ描画 ---
-        function addAccount() { const v = document.getElementById('new-account').value; if(v){ appData.accounts.push(v); document.getElementById('new-account').value=''; save(); } }
         function addCategory() {
-            const n = document.getElementById('cat-name').value;
-            const it = document.getElementById('cat-income-type').value;
-            const et = document.getElementById('cat-exp-type').value;
-            const t = Number(document.getElementById('cat-target').value);
-            const acc = document.getElementById('cat-account').value;
-            const p = document.querySelector('input[name="payer"]:checked').value;
-            if(n && t > 0) { appData.categories.push({name:n, incomeType:it, expType:et, target:t, account:acc, payer:p}); document.getElementById('cat-name').value=''; document.getElementById('cat-target').value=''; save(); }
+            const name = document.getElementById('cat-name').value;
+            const target = Number(document.getElementById('cat-target').value);
+            
+            if (name && target >= 0) {
+                appData.categories.push({
+                    name: name,
+                    incomeType: document.getElementById('cat-inc-type').value,
+                    expType: document.getElementById('cat-exp-type').value,
+                    target: target,
+                    account: document.getElementById('cat-account').value,
+                    payer: document.querySelector('input[name="payer"]:checked').value
+                });
+                document.getElementById('cat-name').value = '';
+                document.getElementById('cat-target').value = '';
+                saveData();
+                renderMasterTab();
+                // 裏側で再描画しておく
+                renderCalc(); 
+            } else {
+                alert("費目名と目標金額を正しく入力してください");
+            }
         }
-        function renderMaster() {
-            document.getElementById('account-tags').innerHTML = appData.accounts.map(a => `<span class="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold">${a}</span>`).join('');
-            document.getElementById('cat-account').innerHTML = appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
-            document.getElementById('category-list').innerHTML = appData.categories.map((c, i) => `<div class="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100 text-xs"><div><span class="text-[8px] font-black text-indigo-400 uppercase">${c.incomeType} / ${c.expType}</span><p class="font-black">${c.name} (¥${c.target.toLocaleString()})</p></div><button onclick="appData.categories.splice(${i},1);save();" class="text-slate-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`).join('');
+
+        function deleteCategory(index) {
+            appData.categories.splice(index, 1);
+            saveData();
+            renderMasterTab();
+            renderCalc();
+        }
+
+        function renderMasterTab() {
+            // 口座リスト描画
+            document.getElementById('account-tags').innerHTML = appData.accounts.map(a => 
+                `<span class="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs">${a}</span>`
+            ).join('');
+            
+            // 口座セレクトボックス更新
+            document.getElementById('cat-account').innerHTML = appData.accounts.map(a => 
+                `<option value="${a}">${a}</option>`
+            ).join('');
+
+            // マスタリスト描画（担当と口座を表示）
+            const listObj = document.getElementById('master-list');
+            listObj.innerHTML = appData.categories.map((c, i) => `
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] bg-slate-100 px-1 rounded">${c.incomeType}/${c.expType}</span>
+                            <span class="font-bold text-sm">${c.name}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-500">
+                            目標: ¥${c.target.toLocaleString()} | <span class="text-indigo-500 font-bold">${c.payer}担当 ➔ ${c.account}</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteCategory(${i})" class="p-2 text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+            `).join('');
             lucide.createIcons();
         }
 
-        function renderTop() {
-            const accSum = {};
-            appData.categories.forEach(c => accSum[c.account] = (accSum[c.account] || 0) + c.target);
-            document.getElementById('top-savings-list').innerHTML = Object.entries(accSum).map(([acc, val]) => `<div class="flex justify-between text-xs font-bold border-b border-slate-50 pb-2"><span class="text-slate-500">${acc}</span><span>¥${val.toLocaleString()}</span></div>`).join('');
-            const historyList = Object.keys(appData.monthlyLogs).sort().reverse().slice(0, 3);
-            let html = "";
-            historyList.forEach(m => { for(let t in appData.monthlyLogs[m]){ const log = appData.monthlyLogs[m][t].summary; html += `<div class="bg-white/5 p-4 rounded-2xl border border-white/10 flex justify-between items-center"><div><p class="text-[9px] font-black opacity-50 uppercase">${m} - ${t}</p><p class="text-[10px] font-bold">収入: ¥${log.totalIncome.toLocaleString()}</p></div><div class="text-right"><p class="text-[9px] opacity-50 uppercase font-black">Savings</p><p class="text-sm font-black text-indigo-400">¥${log.savings.toLocaleString()}</p></div></div>`; } });
-            document.getElementById('top-history-list').innerHTML = html || '<p class="text-[10px] opacity-40 text-center py-8">データなし</p>';
-            lucide.createIcons();
+        // --- 計算処理 ---
+        function renderCalc() {
+            const month = document.getElementById('month-select').value;
+            const type = document.getElementById('type-select').value;
+            const key = `${month}-${type}`;
+
+            // データがなければ初期化
+            if (!appData.logs[key]) {
+                appData.logs[key] = { incH: 0, incW: 0, exp: {} };
+            }
+            const log = appData.logs[key];
+
+            // 収入の復元
+            document.getElementById('inc-h').value = log.incH || '';
+            document.getElementById('inc-w').value = log.incW || '';
+
+            // 該当する費目の抽出
+            const filteredCats = appData.categories.filter(c => c.incomeType === type);
+
+            // 支出入力欄の描画
+            const expList = document.getElementById('expense-list');
+            expList.innerHTML = filteredCats.map(c => {
+                const isFixed = c.expType === "固定費";
+                const savedVal = log.exp[c.name] || '';
+                
+                return `
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <div class="text-sm font-bold flex items-center gap-1">
+                            <span class="text-[10px] font-normal px-1 rounded ${isFixed ? 'bg-slate-100 text-slate-500' : 'bg-indigo-100 text-indigo-600'}">${c.expType}</span>
+                            ${c.name}
+                        </div>
+                        <div class="text-[11px] text-slate-500 mt-1">
+                            目標: ¥${c.target.toLocaleString()} (${c.payer} ➔ ${c.account})
+                        </div>
+                    </div>
+                    ${isFixed 
+                        ? `<span class="text-xs font-bold text-slate-400">実績入力不要</span>` 
+                        : `<input type="number" 
+                                  data-name="${c.name}" 
+                                  data-target="${c.target}" 
+                                  oninput="liveCalculate()" 
+                                  class="exp-input w-24 bg-slate-50 border border-slate-200 rounded px-2 py-2 text-right font-bold outline-none focus:border-indigo-500 transition-colors" 
+                                  placeholder="実績" 
+                                  value="${savedVal}">`
+                    }
+                </div>`;
+            }).join('');
+
+            // 即時計算を実行（色付けや集計を反映させるため）
+            liveCalculate();
+        }
+
+        function liveCalculate() {
+            const month = document.getElementById('month-select').value;
+            const type = document.getElementById('type-select').value;
+            const key = `${month}-${type}`;
+
+            // 収入の取得と保存
+            const incH = Number(document.getElementById('inc-h').value) || 0;
+            const incW = Number(document.getElementById('inc-w').value) || 0;
+            appData.logs[key].incH = incH;
+            appData.logs[key].incW = incW;
+
+            let totalExp = 0;
+            const transferMap = {}; // 送金集計用
+
+            // 該当するマスタデータの取得
+            const filteredCats = appData.categories.filter(c => c.incomeType === type);
+
+            // ① 送金先の集計（固定費・変動費の区別なく、目標金額を送金ベースとする）
+            filteredCats.forEach(c => {
+                const routeKey = `${c.payer} ➔ ${c.account}`;
+                transferMap[routeKey] = (transferMap[routeKey] || 0) + c.target;
+            });
+
+            // 送金リストの描画
+            document.getElementById('transfer-list').innerHTML = Object.entries(transferMap).map(([route, amount]) => `
+                <div class="flex justify-between bg-white px-3 py-2 rounded text-xs font-bold border border-indigo-100">
+                    <span class="text-slate-600">${route}</span>
+                    <span class="text-indigo-600">¥${amount.toLocaleString()}</span>
+                </div>
+            `).join('') || '<div class="text-xs text-slate-400 text-center py-2">データがありません</div>';
+
+            // ② 実績値の集計とアラート色付け
+            document.querySelectorAll('.exp-input').forEach(input => {
+                const catName = input.dataset.name;
+                const target = Number(input.dataset.target);
+                const val = Number(input.value) || 0;
+
+                // 入力値を保存（画面切り替え対策）
+                appData.logs[key].exp[catName] = val;
+
+                // 目標超過チェック（超過なら赤くする）
+                if (val > target) {
+                    input.classList.add('is-over');
+                } else {
+                    input.classList.remove('is-over');
+                }
+
+                totalExp += val;
+            });
+
+            // 固定費は実績入力がないため、目標値をそのまま総支出に足す
+            filteredCats.filter(c => c.expType === '固定費').forEach(c => {
+                totalExp += c.target;
+            });
+
+            // ③ 残金の計算と描画
+            const remain = (incH + incW) - totalExp;
+            const remainEl = document.getElementById('remaining-amount');
+            remainEl.innerText = `¥${remain.toLocaleString()}`;
+            
+            if (remain < 0) {
+                remainEl.classList.remove('text-indigo-700');
+                remainEl.classList.add('text-red-600');
+            } else {
+                remainEl.classList.add('text-indigo-700');
+                remainEl.classList.remove('text-red-600');
+            }
+
+            // 変更をLocalStorageに即時保存
+            saveData();
         }
     </script>
 </body>
