@@ -64,9 +64,26 @@
                 <div id="expense-list" class="space-y-3">
                     </div>
             </section>
+
+            <div class="flex justify-center mt-8 pb-4">
+                <button onclick="manualSave()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex justify-center items-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> 現在のデータを保存・更新
+                </button>
+            </div>
         </div>
 
         <div id="tab-master" class="tab-content space-y-6">
+            
+            <section class="flex gap-3 mb-2">
+                <button onclick="exportData()" class="flex-1 bg-white border border-slate-200 py-3 rounded-xl text-xs font-bold text-slate-600 shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 transition-colors">
+                    <i data-lucide="download" class="w-4 h-4"></i> エクスポート
+                </button>
+                <label class="flex-1 bg-white border border-slate-200 py-3 rounded-xl text-xs font-bold text-slate-600 shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 transition-colors cursor-pointer">
+                    <i data-lucide="upload" class="w-4 h-4"></i> インポート
+                    <input type="file" onchange="importData(event)" class="hidden" accept=".json">
+                </label>
+            </section>
+
             <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <h3 class="font-bold text-indigo-600">口座追加</h3>
                 <div class="flex gap-2">
@@ -117,7 +134,7 @@
         let appData = JSON.parse(localStorage.getItem('kakei_fixed_db')) || {
             accounts: ['共通口座', '夫口座', '妻口座'],
             categories: [],
-            logs: {} // キー例: "2026-04-給与"
+            logs: {}
         };
 
         function saveData() {
@@ -128,7 +145,6 @@
         window.onload = () => {
             lucide.createIcons();
             const today = new Date();
-            // 年月を YYYY-MM 形式でセット
             const yyyy = today.getFullYear();
             const mm = String(today.getMonth() + 1).padStart(2, '0');
             document.getElementById('month-select').value = `${yyyy}-${mm}`;
@@ -153,6 +169,47 @@
 
             if (tabId === 'calc') renderCalc();
             if (tabId === 'master') renderMasterTab();
+        }
+
+        // --- データのエクスポート / インポート ---
+        function exportData() {
+            const dataStr = JSON.stringify(appData, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `kakei_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && imported.categories) {
+                        appData = imported;
+                        saveData();
+                        renderMasterTab();
+                        renderCalc();
+                        alert("データをインポートしました！");
+                    } else {
+                        alert("無効なデータファイルです。");
+                    }
+                } catch (err) {
+                    alert("ファイルの読み込みに失敗しました。");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ""; // 入力リセット
+        }
+
+        function manualSave() {
+            saveData();
+            alert("入力内容を保存・更新しました！\n（※普段の入力時も自動保存されています）");
         }
 
         // --- マスタ処理 ---
@@ -183,7 +240,6 @@
                 document.getElementById('cat-target').value = '';
                 saveData();
                 renderMasterTab();
-                // 裏側で再描画しておく
                 renderCalc(); 
             } else {
                 alert("費目名と目標金額を正しく入力してください");
@@ -198,17 +254,14 @@
         }
 
         function renderMasterTab() {
-            // 口座リスト描画
             document.getElementById('account-tags').innerHTML = appData.accounts.map(a => 
                 `<span class="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs">${a}</span>`
             ).join('');
             
-            // 口座セレクトボックス更新
             document.getElementById('cat-account').innerHTML = appData.accounts.map(a => 
                 `<option value="${a}">${a}</option>`
             ).join('');
 
-            // マスタリスト描画（担当と口座を表示）
             const listObj = document.getElementById('master-list');
             listObj.innerHTML = appData.categories.map((c, i) => `
                 <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
@@ -233,20 +286,16 @@
             const type = document.getElementById('type-select').value;
             const key = `${month}-${type}`;
 
-            // データがなければ初期化
             if (!appData.logs[key]) {
                 appData.logs[key] = { incH: 0, incW: 0, exp: {} };
             }
             const log = appData.logs[key];
 
-            // 収入の復元
             document.getElementById('inc-h').value = log.incH || '';
             document.getElementById('inc-w').value = log.incW || '';
 
-            // 該当する費目の抽出
             const filteredCats = appData.categories.filter(c => c.incomeType === type);
 
-            // 支出入力欄の描画
             const expList = document.getElementById('expense-list');
             expList.innerHTML = filteredCats.map(c => {
                 const isFixed = c.expType === "固定費";
@@ -276,7 +325,6 @@
                 </div>`;
             }).join('');
 
-            // 即時計算を実行（色付けや集計を反映させるため）
             liveCalculate();
         }
 
@@ -285,25 +333,21 @@
             const type = document.getElementById('type-select').value;
             const key = `${month}-${type}`;
 
-            // 収入の取得と保存
             const incH = Number(document.getElementById('inc-h').value) || 0;
             const incW = Number(document.getElementById('inc-w').value) || 0;
             appData.logs[key].incH = incH;
             appData.logs[key].incW = incW;
 
             let totalExp = 0;
-            const transferMap = {}; // 送金集計用
+            const transferMap = {}; 
 
-            // 該当するマスタデータの取得
             const filteredCats = appData.categories.filter(c => c.incomeType === type);
 
-            // ① 送金先の集計（固定費・変動費の区別なく、目標金額を送金ベースとする）
             filteredCats.forEach(c => {
                 const routeKey = `${c.payer} ➔ ${c.account}`;
                 transferMap[routeKey] = (transferMap[routeKey] || 0) + c.target;
             });
 
-            // 送金リストの描画
             document.getElementById('transfer-list').innerHTML = Object.entries(transferMap).map(([route, amount]) => `
                 <div class="flex justify-between bg-white px-3 py-2 rounded text-xs font-bold border border-indigo-100">
                     <span class="text-slate-600">${route}</span>
@@ -311,16 +355,13 @@
                 </div>
             `).join('') || '<div class="text-xs text-slate-400 text-center py-2">データがありません</div>';
 
-            // ② 実績値の集計とアラート色付け
             document.querySelectorAll('.exp-input').forEach(input => {
                 const catName = input.dataset.name;
                 const target = Number(input.dataset.target);
                 const val = Number(input.value) || 0;
 
-                // 入力値を保存（画面切り替え対策）
                 appData.logs[key].exp[catName] = val;
 
-                // 目標超過チェック（超過なら赤くする）
                 if (val > target) {
                     input.classList.add('is-over');
                 } else {
@@ -330,12 +371,10 @@
                 totalExp += val;
             });
 
-            // 固定費は実績入力がないため、目標値をそのまま総支出に足す
             filteredCats.filter(c => c.expType === '固定費').forEach(c => {
                 totalExp += c.target;
             });
 
-            // ③ 残金の計算と描画
             const remain = (incH + incW) - totalExp;
             const remainEl = document.getElementById('remaining-amount');
             remainEl.innerText = `¥${remain.toLocaleString()}`;
@@ -348,7 +387,6 @@
                 remainEl.classList.remove('text-red-600');
             }
 
-            // 変更をLocalStorageに即時保存
             saveData();
         }
     </script>
