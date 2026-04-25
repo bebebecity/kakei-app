@@ -3,46 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計管理 Cloud</title>
+    <title>夫婦の家計管理 Cloud 完全版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-        // 【重要】ここにFirebaseで取得したConfigを貼り付けてください
-        const firebaseConfig = {
-          apiKey: "AIzaSyBDZtgDi6Brun6G_ojfl7YBCj0NWRcBu7g",
-          authDomain: "kakeimo.firebaseapp.com",
-          projectId: "kakeimo",
-          storageBucket: "kakeimo.firebasestorage.app",
-          messagingSenderId: "1074277480943",
-          appId: "1:1074277480943:web:0f1f7dafba1330389e1e1a"
-        };
+        
+        // 外だしの設定ファイルを読み込み
+        import { firebaseConfig } from "./firebase-config.js";
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // アプリの状態
-        window.appData = { accounts: ['共通口座'], categories: [], logs: {} };
+        // --- アプリ共通データ ---
+        window.appData = { accounts: ['共通口座', '夫口座', '妻口座'], categories: [], logs: {} };
 
-        // ログイン処理
+        // --- 認証ロジック ---
         window.handleLogin = async () => {
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-pass').value;
-            try {
-                await signInWithEmailAndPassword(auth, email, pass);
-            } catch (e) {
-                alert("ログイン失敗: " + e.message);
-            }
+            try { await signInWithEmailAndPassword(auth, email, pass); } 
+            catch (e) { alert("ログインに失敗しました。設定を確認してください。"); }
         };
-
-        // ログアウト処理
         window.handleLogout = () => signOut(auth);
 
-        // 認証状態の監視
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 document.getElementById('auth-screen').classList.add('hidden');
@@ -54,150 +41,239 @@
             }
         });
 
-        // リアルタイム同期の開始
+        // --- Firebase同期ロジック ---
         function startSync() {
+            // クラウドからデータが降ってきたら自動でUIを全更新
             onSnapshot(doc(db, "household_data", "main_record"), (docSnap) => {
                 if (docSnap.exists()) {
                     window.appData = docSnap.data();
-                    refreshUI();
                     renderCalc();
+                    renderMaster();
                 }
             });
         }
 
-        // クラウドへ保存
         window.saveToCloud = async () => {
-            try {
-                await setDoc(doc(db, "household_data", "main_record"), window.appData);
-                console.log("Cloud Saved");
-            } catch (e) {
-                console.error("Save Error", e);
+            await setDoc(doc(db, "household_data", "main_record"), window.appData);
+        };
+
+        // --- 描画・計算ロジック（完全統合版） ---
+        window.switchTab = (tabId) => {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const isActive = btn.dataset.tab === tabId;
+                btn.classList.toggle('text-indigo-600', isActive);
+                btn.classList.toggle('text-slate-400', !isActive);
+            });
+            if (tabId === 'calc') renderCalc();
+            if (tabId === 'master') renderMaster();
+            lucide.createIcons();
+        };
+
+        window.liveUpdate = () => {
+            const month = document.getElementById('month-select').value;
+            const type = document.getElementById('type-select').value;
+            const key = `${month}-${type}`;
+
+            if (!window.appData.logs[key]) window.appData.logs[key] = { incH: 0, incW: 0, exp: {} };
+            const log = window.appData.logs[key];
+
+            log.incH = Number(document.getElementById('inc-h').value) || 0;
+            log.incW = Number(document.getElementById('inc-w').value) || 0;
+
+            let totalExp = 0;
+            const transferMap = {};
+            const filtered = window.appData.categories.filter(c => c.incomeType === type);
+
+            // 送金指示の集計
+            filtered.forEach(c => {
+                const route = `${c.payer} ➔ ${c.account}`;
+                transferMap[route] = (transferMap[route] || 0) + c.target;
+                if (c.expType === '固定費') totalExp += c.target;
+            });
+
+            // 変動費の実績集計とアラート判定
+            document.querySelectorAll('.exp-input').forEach(input => {
+                const val = Number(input.value) || 0;
+                const target = Number(input.dataset.target);
+                log.exp[input.dataset.name] = val;
+                totalExp += val;
+                input.classList.toggle('is-over', val > target);
+            });
+
+            // UI反映
+            document.getElementById('transfer-list').innerHTML = Object.entries(transferMap).map(([r, a]) => `
+                <div class="flex justify-between bg-white px-3 py-2 rounded border border-indigo-100 text-xs font-bold shadow-sm">
+                    <span class="text-slate-600">${r}</span><span class="text-indigo-600">¥${a.toLocaleString()}</span>
+                </div>`).join('') || '<p class="text-center text-[10px] text-slate-400 py-2">マスタを登録してください</p>';
+
+            const remain = (log.incH + log.incW) - totalExp;
+            const remainEl = document.getElementById('remaining-amount');
+            remainEl.innerText = `¥${remain.toLocaleString()}`;
+            remainEl.className = `font-black ${remain < 0 ? 'text-red-600' : 'text-indigo-700'}`;
+
+            window.saveToCloud(); // 入力のたびに自動保存
+        };
+
+        window.renderCalc = () => {
+            const month = document.getElementById('month-select').value;
+            const type = document.getElementById('type-select').value;
+            const log = window.appData.logs[`${month}-${type}`] || { incH: 0, incW: 0, exp: {} };
+
+            document.getElementById('inc-h').value = log.incH || '';
+            document.getElementById('inc-w').value = log.incW || '';
+
+            const container = document.getElementById('expense-list');
+            container.innerHTML = window.appData.categories.filter(c => c.incomeType === type).map(c => `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center transition-all">
+                    <div class="flex-1">
+                        <div class="text-sm font-bold flex items-center gap-1">
+                            <span class="text-[9px] px-1.5 py-0.5 rounded leading-none ${c.expType==='固定費'?'bg-slate-100 text-slate-500':'bg-indigo-100 text-indigo-600'}">${c.expType}</span>
+                            ${c.name}
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-1 italic">目標: ¥${c.target.toLocaleString()} (${c.payer}➔${c.account})</div>
+                    </div>
+                    ${c.expType==='固定費' ? 
+                        '<span class="text-[10px] text-slate-300 font-bold bg-slate-50 px-3 py-2 rounded-lg">固定設定</span>' : 
+                        `<input type="number" data-name="${c.name}" data-target="${c.target}" oninput="liveUpdate()" class="exp-input w-24 bg-slate-50 border border-slate-100 rounded-xl px-2 py-3 text-right font-black outline-none focus:border-indigo-400" placeholder="実績" value="${log.exp[c.name]||''}">`}
+                </div>`).join('');
+            window.liveUpdate();
+        };
+
+        window.renderMaster = () => {
+            document.getElementById('cat-account').innerHTML = window.appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+            document.getElementById('master-list').innerHTML = window.appData.categories.map((c, i) => `
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center text-xs shadow-sm">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="bg-slate-100 text-slate-500 px-1 rounded text-[9px]">${c.incomeType}</span>
+                            <span class="font-bold">${c.name}</span>
+                        </div>
+                        <div class="text-slate-400">目標: ¥${c.target.toLocaleString()} | <span class="text-indigo-500">${c.payer}➔${c.account}</span></div>
+                    </div>
+                    <button onclick="deleteCategory(${i})" class="p-2 text-slate-200 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                </div>`).join('');
+            lucide.createIcons();
+        };
+
+        window.addCategory = () => {
+            const name = document.getElementById('cat-name').value;
+            const target = Number(document.getElementById('cat-target').value);
+            if (name && target >= 0) {
+                window.appData.categories.push({
+                    name, target,
+                    incomeType: document.getElementById('cat-inc-type').value,
+                    expType: document.getElementById('cat-exp-type').value,
+                    account: document.getElementById('cat-account').value,
+                    payer: document.querySelector('input[name="payer"]:checked').value
+                });
+                document.getElementById('cat-name').value = '';
+                document.getElementById('cat-target').value = '';
+                window.saveToCloud();
             }
+        };
+
+        window.deleteCategory = (index) => {
+            if(confirm("この費目を削除しますか？")) {
+                window.appData.categories.splice(index, 1);
+                window.saveToCloud();
+            }
+        };
+
+        window.onload = () => {
+            const today = new Date();
+            document.getElementById('month-select').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            lucide.createIcons();
         };
     </script>
     <style>
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .is-over { background-color: #fef2f2 !important; border-color: #ef4444 !important; color: #b91c1c !important; }
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .is-over { background-color: #fff1f2 !important; border-color: #fda4af !important; color: #e11d48 !important; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 pb-24">
+<body class="bg-slate-50 text-slate-800 pb-28">
 
     <div id="auth-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex items-center justify-center p-6">
-        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm space-y-6">
-            <h2 class="text-2xl font-black text-center text-indigo-600">Family Login</h2>
-            <input type="email" id="login-email" placeholder="メールアドレス" class="w-full p-4 bg-slate-100 rounded-2xl outline-none">
-            <input type="password" id="login-pass" placeholder="パスワード" class="w-full p-4 bg-slate-100 rounded-2xl outline-none">
-            <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg">ログイン</button>
+        <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-sm space-y-8 text-center">
+            <div>
+                <h2 class="text-3xl font-black text-indigo-600 tracking-tighter">CLOUD LOGIN</h2>
+                <p class="text-slate-400 text-xs mt-2">夫婦共有アカウントで開始</p>
+            </div>
+            <div class="space-y-3">
+                <input type="email" id="login-email" placeholder="メールアドレス" class="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 ring-indigo-500/20 transition-all">
+                <input type="password" id="login-pass" placeholder="パスワード" class="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 ring-indigo-500/20 transition-all">
+            </div>
+            <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-bold shadow-xl shadow-indigo-200 active:scale-95 transition-all">ログインする</button>
         </div>
     </div>
 
     <div id="app-screen" class="hidden">
-        <header class="bg-indigo-600 text-white p-5 shadow-md flex justify-between items-center">
-            <h1 class="text-lg font-bold">家計管理 Cloud</h1>
-            <div class="flex items-center gap-2">
-                <input type="month" id="month-select" onchange="renderCalc()" class="bg-white/20 text-xs border-none rounded px-2 py-1 text-white outline-none">
-                <button onclick="handleLogout()" class="text-xs opacity-70"><i data-lucide="log-out" class="w-4 h-4"></i></button>
+        <header class="bg-indigo-600 text-white p-6 shadow-lg sticky top-0 z-40">
+            <div class="max-w-md mx-auto flex justify-between items-center">
+                <h1 class="text-xl font-black italic tracking-widest">FINANCE</h1>
+                <div class="flex items-center gap-3">
+                    <input type="month" id="month-select" onchange="renderCalc()" class="bg-white/20 text-xs border-none rounded-lg px-2 py-1.5 outline-none font-bold">
+                    <button onclick="handleLogout()" class="opacity-40 hover:opacity-100"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                </div>
             </div>
         </header>
 
-        <main class="max-w-md mx-auto p-4">
-            <div id="tab-calc" class="tab-content active space-y-6">
-                <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="font-bold text-indigo-600">収入入力</h2>
-                        <select id="type-select" onchange="renderCalc()" class="bg-slate-100 px-2 py-1 rounded text-sm outline-none">
+        <main class="max-w-md mx-auto p-5 space-y-8">
+            <div id="tab-calc" class="tab-content active space-y-8">
+                <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Income</h2>
+                        <select id="type-select" onchange="renderCalc()" class="bg-slate-100 px-4 py-2 rounded-xl text-xs font-black outline-none border-none">
                             <option>給与</option><option>賞与</option><option>臨時</option>
                         </select>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
-                        <input type="number" id="inc-h" oninput="liveUpdate()" class="border-b-2 p-1 font-bold outline-none" placeholder="夫収入">
-                        <input type="number" id="inc-w" oninput="liveUpdate()" class="border-b-2 p-1 font-bold outline-none" placeholder="妻収入">
+                        <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-1">HUSBAND</label><input type="number" id="inc-h" oninput="liveUpdate()" class="w-full bg-slate-50 p-4 rounded-2xl text-lg font-black outline-none border border-transparent focus:border-indigo-100" placeholder="0"></div>
+                        <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-1">WIFE</label><input type="number" id="inc-w" oninput="liveUpdate()" class="w-full bg-slate-50 p-4 rounded-2xl text-lg font-black outline-none border border-transparent focus:border-indigo-100" placeholder="0"></div>
                     </div>
                 </section>
 
-                <section class="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
-                    <h3 class="text-xs font-bold text-indigo-400 mb-3 uppercase">送金指示</h3>
-                    <div id="transfer-list" class="space-y-2 mb-3"></div>
-                    <div class="flex justify-between border-t border-indigo-200 pt-3 text-sm font-bold">
-                        <span>残金</span><span id="remaining-amount" class="text-indigo-700">¥0</span>
+                <section class="bg-indigo-600 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100 text-white">
+                    <h3 class="text-[10px] font-black opacity-60 mb-4 uppercase tracking-[0.2em]">Transfer Directions</h3>
+                    <div id="transfer-list" class="space-y-3 mb-5 text-slate-800"></div>
+                    <div class="flex justify-between items-end border-t border-white/20 pt-4">
+                        <span class="text-xs font-bold opacity-80">Free Budget (残金)</span>
+                        <span id="remaining-amount" class="text-2xl font-black">¥0</span>
                     </div>
                 </section>
 
-                <div id="expense-list" class="space-y-3"></div>
+                <div id="expense-list" class="space-y-4"></div>
             </div>
 
-            <div id="tab-master" class="tab-content space-y-6">
-                <section class="bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
-                    <h3 class="font-bold text-indigo-600">設定・マスタ</h3>
-                    <input type="text" id="cat-name" class="w-full p-2 bg-slate-50 rounded" placeholder="費目名">
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="number" id="cat-target" class="p-2 bg-slate-50 rounded" placeholder="目標金額">
-                        <select id="cat-account" class="p-2 bg-slate-50 rounded"></select>
+            <div id="tab-master" class="tab-content space-y-8">
+                <section class="bg-white p-6 rounded-[2.5rem] border border-slate-200 space-y-5">
+                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Master Setup</h3>
+                    <input type="text" id="cat-name" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="費目名（例：家賃、食費）">
+                    <div class="grid grid-cols-2 gap-3">
+                        <select id="cat-inc-type" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"><option>給与</option><option>賞与</option><option>臨時</option></select>
+                        <select id="cat-exp-type" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"><option value="固定費">固定費</option><option value="変動費">変動費</option></select>
                     </div>
-                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">追加</button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="cat-target" class="p-4 bg-slate-50 rounded-2xl outline-none font-bold" placeholder="目標額">
+                        <select id="cat-account" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"></select>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-2xl text-[10px] font-black flex justify-around uppercase tracking-widest">
+                        <label class="flex items-center gap-2"><input type="radio" name="payer" value="夫" checked class="accent-indigo-600"> 夫担当</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="payer" value="妻" class="accent-indigo-600"> 妻担当</label>
+                    </div>
+                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-bold shadow-lg shadow-indigo-100 active:scale-95 transition-all">マスタを保存</button>
                 </section>
-                <div id="master-list" class="space-y-2"></div>
+                <div id="master-list" class="space-y-3"></div>
             </div>
         </main>
 
-        <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 pb-6 z-50">
-            <button onclick="switchTab('calc')" class="nav-btn flex flex-col items-center flex-1 text-indigo-600" data-tab="calc"><i data-lucide="calculator"></i><span class="text-[10px]">計算</span></button>
-            <button onclick="switchTab('master')" class="nav-btn flex flex-col items-center flex-1 text-slate-400" data-tab="master"><i data-lucide="settings"></i><span class="text-[10px]">設定</span></button>
+        <nav class="fixed bottom-6 left-6 right-6 bg-white/80 border border-white rounded-[2.5rem] flex justify-around p-3 z-40 backdrop-blur-xl shadow-2xl shadow-slate-200">
+            <button onclick="switchTab('calc')" class="nav-btn flex flex-col items-center flex-1 text-indigo-600" data-tab="calc"><i data-lucide="calculator"></i><span class="text-[9px] font-black mt-1">CALC</span></button>
+            <button onclick="switchTab('master')" class="nav-btn flex flex-col items-center flex-1 text-slate-400" data-tab="master"><i data-lucide="settings"></i><span class="text-[9px] font-black mt-1">MASTER</span></button>
         </nav>
     </div>
-
-    <script>
-        // タブ切り替え
-        function switchTab(id) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + id).classList.add('active');
-            if(id === 'calc') renderCalc(); else renderMaster();
-            lucide.createIcons();
-        }
-
-        // 入力時の即時反映（クラウド保存も呼ぶ）
-        function liveUpdate() {
-            const month = document.getElementById('month-select').value;
-            const type = document.getElementById('type-select').value;
-            const key = `${month}-${type}`;
-            if(!window.appData.logs[key]) window.appData.logs[key] = { incH:0, incW:0, exp:{} };
-            
-            window.appData.logs[key].incH = Number(document.getElementById('inc-h').value);
-            window.appData.logs[key].incW = Number(document.getElementById('inc-w').value);
-            
-            document.querySelectorAll('.exp-input').forEach(input => {
-                window.appData.logs[key].exp[input.dataset.name] = Number(input.value);
-            });
-            
-            calculateAll();
-            window.saveToCloud(); // 1文字打つごとにクラウドへ
-        }
-
-        function calculateAll() {
-            // 前回の計算ロジックをここに統合
-            // （紙面の都合上、主要な計算と表示のみ記載）
-            const remain = (window.appData.logs[key]?.incH || 0) + (window.appData.logs[key]?.incW || 0);
-            document.getElementById('remaining-amount').innerText = `¥${remain.toLocaleString()}`;
-        }
-
-        function addCategory() {
-            const name = document.getElementById('cat-name').value;
-            const target = Number(document.getElementById('cat-target').value);
-            if(name && target) {
-                window.appData.categories.push({ name, target, account: '共通口座', payer: '夫', incomeType: '給与', expType: '変動費' });
-                window.saveToCloud();
-                renderMaster();
-            }
-        }
-        
-        // UIの再描画（同期時に呼ばれる）
-        function refreshUI() {
-            lucide.createIcons();
-        }
-        
-        function renderCalc() { /* 描画ロジック */ }
-        function renderMaster() { /* 描画ロジック */ }
-    </script>
 </body>
 </html>
