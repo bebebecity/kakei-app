@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計管理 Cloud 完全版 v1.1</title>
+    <title>夫婦の家計管理 Cloud v1.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script type="module">
@@ -17,9 +17,11 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // 初期データ（クラウドにデータがない場合）
+        // 状態管理用
         window.appData = { accounts: ['共通口座'], categories: [], logs: {} };
+        let isEditing = false; 
 
+        // --- 認証 ---
         window.handleLogin = async () => {
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-pass').value;
@@ -39,22 +41,28 @@
             }
         });
 
+        // --- 同期 (Firebase -> App) ---
         function startSync() {
             onSnapshot(doc(db, "household_data", "main_record"), (docSnap) => {
                 if (docSnap.exists()) {
                     window.appData = docSnap.data();
-                    // データ構造の互換性担保（accountsがない古いデータへの対策）
                     if(!window.appData.accounts) window.appData.accounts = ['共通口座'];
-                    renderCalc();
-                    renderMaster();
+                    
+                    // ★入力中でなければ画面を更新
+                    if (!isEditing) {
+                        renderCalc();
+                        renderMaster();
+                    }
                 }
             });
         }
 
+        // --- 保存 (App -> Firebase) ---
         window.saveToCloud = async () => {
             await setDoc(doc(db, "household_data", "main_record"), window.appData);
         };
 
+        // --- UI描画 ---
         window.switchTab = (tabId) => {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tabId}`).classList.add('active');
@@ -68,7 +76,7 @@
             lucide.createIcons();
         };
 
-        window.liveUpdate = () => {
+        window.liveUpdate = (shouldSave = true) => {
             const month = document.getElementById('month-select').value;
             const type = document.getElementById('type-select').value;
             const key = `${month}-${type}`;
@@ -107,7 +115,7 @@
             remainEl.innerText = `¥${remain.toLocaleString()}`;
             remainEl.className = `font-black ${remain < 0 ? 'text-red-600' : 'text-indigo-700'}`;
 
-            window.saveToCloud();
+            if (shouldSave) window.saveToCloud();
         };
 
         window.renderCalc = () => {
@@ -115,31 +123,54 @@
             const type = document.getElementById('type-select').value;
             const log = window.appData.logs[`${month}-${type}`] || { incH: 0, incW: 0, exp: {} };
 
-            document.getElementById('inc-h').value = log.incH || '';
-            document.getElementById('inc-w').value = log.incW || '';
+            // 収入入力欄の保護
+            const incH = document.getElementById('inc-h');
+            const incW = document.getElementById('inc-w');
+            if (document.activeElement !== incH) incH.value = log.incH || '';
+            if (document.activeElement !== incW) incW.value = log.incW || '';
 
             const container = document.getElementById('expense-list');
-            container.innerHTML = window.appData.categories.filter(c => c.incomeType === type).map(c => `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center transition-all">
-                    <div class="flex-1">
-                        <div class="text-sm font-bold flex items-center gap-1">
-                            <span class="text-[9px] px-1.5 py-0.5 rounded leading-none ${c.expType==='固定費'?'bg-slate-100 text-slate-500':'bg-indigo-100 text-indigo-600'}">${c.expType}</span>
-                            ${c.name}
+            const filtered = window.appData.categories.filter(c => c.incomeType === type);
+
+            // 構造自体が変わった時だけ全体を描画
+            const currentInputs = container.querySelectorAll('.exp-input');
+            const expectedCount = filtered.filter(c => c.expType !== '固定費').length;
+
+            if (container.children.length === 0 || currentInputs.length !== expectedCount) {
+                container.innerHTML = filtered.map(c => `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center transition-all">
+                        <div class="flex-1">
+                            <div class="text-sm font-bold flex items-center gap-1">
+                                <span class="text-[9px] px-1.5 py-0.5 rounded leading-none ${c.expType==='固定費'?'bg-slate-100 text-slate-500':'bg-indigo-100 text-indigo-600'}">${c.expType}</span>
+                                ${c.name}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-1 italic">目標: ¥${c.target.toLocaleString()} (${c.payer}➔${c.account})</div>
                         </div>
-                        <div class="text-[10px] text-slate-400 mt-1 italic">目標: ¥${c.target.toLocaleString()} (${c.payer}➔${c.account})</div>
-                    </div>
-                    ${c.expType==='固定費' ? 
-                        '<span class="text-[10px] text-slate-300 font-bold bg-slate-50 px-3 py-2 rounded-lg">固定設定</span>' : 
-                        `<input type="number" data-name="${c.name}" data-target="${c.target}" oninput="liveUpdate()" class="exp-input w-24 bg-slate-50 border border-slate-100 rounded-xl px-2 py-3 text-right font-black outline-none focus:border-indigo-400" placeholder="実績" value="${log.exp[c.name]||''}">`}
-                </div>`).join('');
-            window.liveUpdate();
+                        ${c.expType==='固定費' ? 
+                            '<span class="text-[10px] text-slate-300 font-bold bg-slate-50 px-3 py-2 rounded-lg">固定設定</span>' : 
+                            `<input type="number" data-name="${c.name}" data-target="${c.target}" 
+                                onfocus="isEditing=true" 
+                                onblur="isEditing=false; renderCalc()" 
+                                oninput="liveUpdate()" 
+                                class="exp-input w-24 bg-slate-50 border border-slate-100 rounded-xl px-2 py-3 text-right font-black outline-none focus:border-indigo-400" 
+                                value="${log.exp[c.name]||''}">`}
+                    </div>`).join('');
+            } else {
+                // 構造が同じなら、フォーカス中以外の入力欄の「値」だけ更新
+                filtered.forEach(c => {
+                    if (c.expType !== '固定費') {
+                        const input = container.querySelector(`.exp-input[data-name="${c.name}"]`);
+                        if (input && document.activeElement !== input) {
+                            input.value = log.exp[c.name] || '';
+                        }
+                    }
+                });
+            }
+            window.liveUpdate(false);
         };
 
         window.renderMaster = () => {
-            // ① 口座のセレクトボックスを更新
             document.getElementById('cat-account').innerHTML = window.appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
-            
-            // ② 登録済み口座リスト（バッジ風）を描画
             document.getElementById('account-list').innerHTML = window.appData.accounts.map((a, i) => `
                 <span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold">
                     ${a}
@@ -147,7 +178,6 @@
                 </span>
             `).join('');
 
-            // ③ 費目リストを描画
             document.getElementById('master-list').innerHTML = window.appData.categories.map((c, i) => `
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center text-xs shadow-sm">
                     <div>
@@ -162,7 +192,6 @@
             lucide.createIcons();
         };
 
-        // --- 復活させた機能：口座の追加と削除 ---
         window.addAccount = () => {
             const name = document.getElementById('new-account-name').value;
             if (name && !window.appData.accounts.includes(name)) {
@@ -174,14 +203,13 @@
         };
 
         window.deleteAccount = (index) => {
-            if(confirm("この口座を削除しますか？\n※既にこの口座を使っている費目がある場合はご注意ください。")) {
+            if(confirm("この口座を削除しますか？")) {
                 window.appData.accounts.splice(index, 1);
                 window.saveToCloud();
                 renderMaster();
             }
         };
 
-        // --- 既存の機能：費目の追加と削除 ---
         window.addCategory = () => {
             const name = document.getElementById('cat-name').value;
             const target = Number(document.getElementById('cat-target').value);
@@ -211,6 +239,13 @@
         window.onload = () => {
             const today = new Date();
             document.getElementById('month-select').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            // 収入入力欄にも編集フラグ制御を追加
+            const setEdit = () => { isEditing = true; };
+            const unsetEdit = () => { isEditing = false; renderCalc(); };
+            document.getElementById('inc-h').addEventListener('focus', setEdit);
+            document.getElementById('inc-w').addEventListener('focus', setEdit);
+            document.getElementById('inc-h').addEventListener('blur', unsetEdit);
+            document.getElementById('inc-w').addEventListener('blur', unsetEdit);
             lucide.createIcons();
         };
     </script>
@@ -223,37 +258,31 @@
 </head>
 <body class="bg-slate-50 text-slate-800 pb-28">
 
-    <!-- ログイン画面 -->
     <div id="auth-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex items-center justify-center p-6">
         <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-sm space-y-8 text-center">
-            <div>
-                <h2 class="text-3xl font-black text-indigo-600 tracking-tighter">CLOUD LOGIN</h2>
-                <p class="text-slate-400 text-xs mt-2">夫婦共有アカウントで開始</p>
-            </div>
+            <h2 class="text-3xl font-black text-indigo-600 tracking-tighter">CLOUD LOGIN</h2>
             <div class="space-y-3">
-                <input type="email" id="login-email" placeholder="メールアドレス" class="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 ring-indigo-500/20 transition-all">
-                <input type="password" id="login-pass" placeholder="パスワード" class="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 ring-indigo-500/20 transition-all">
+                <input type="email" id="login-email" placeholder="メールアドレス" class="w-full p-4 bg-slate-100 rounded-2xl outline-none">
+                <input type="password" id="login-pass" placeholder="パスワード" class="w-full p-4 bg-slate-100 rounded-2xl outline-none">
             </div>
-            <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-bold shadow-xl shadow-indigo-200 active:scale-95 transition-all">ログインする</button>
+            <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-bold">ログイン</button>
         </div>
     </div>
 
-    <!-- メインアプリ画面 -->
     <div id="app-screen" class="hidden">
-        <header class="bg-indigo-600 text-white p-6 shadow-lg sticky top-0 z-40">
+        <header class="bg-indigo-600 text-white p-6 sticky top-0 z-40">
             <div class="max-w-md mx-auto flex justify-between items-center">
                 <h1 class="text-xl font-black italic tracking-widest">FINANCE</h1>
                 <div class="flex items-center gap-3">
                     <input type="month" id="month-select" onchange="renderCalc()" class="bg-white/20 text-xs border-none rounded-lg px-2 py-1.5 outline-none font-bold">
-                    <button onclick="handleLogout()" class="opacity-40 hover:opacity-100"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                    <button onclick="handleLogout()" class="opacity-40"><i data-lucide="log-out" class="w-5 h-5"></i></button>
                 </div>
             </div>
         </header>
 
         <main class="max-w-md mx-auto p-5 space-y-8">
-            <!-- 計算タブ -->
             <div id="tab-calc" class="tab-content active space-y-8">
-                <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+                <section class="bg-white p-6 rounded-[2rem] border border-slate-200">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Income</h2>
                         <select id="type-select" onchange="renderCalc()" class="bg-slate-100 px-4 py-2 rounded-xl text-xs font-black outline-none border-none">
@@ -261,16 +290,16 @@
                         </select>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-1">HUSBAND</label><input type="number" id="inc-h" oninput="liveUpdate()" class="w-full bg-slate-50 p-4 rounded-2xl text-lg font-black outline-none border border-transparent focus:border-indigo-100" placeholder="0"></div>
-                        <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400 ml-1">WIFE</label><input type="number" id="inc-w" oninput="liveUpdate()" class="w-full bg-slate-50 p-4 rounded-2xl text-lg font-black outline-none border border-transparent focus:border-indigo-100" placeholder="0"></div>
+                        <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400">HUSBAND</label><input type="number" id="inc-h" oninput="liveUpdate()" class="w-full bg-slate-50 p-4 rounded-2xl text-lg font-black outline-none border border-transparent focus:border-indigo-100"></div>
+                        <div class="space-y-1"><label class="text-[9px] font-bold text-slate-400">WIFE</label><input type="number" id="inc-w" oninput="liveUpdate()" class="w-full bg-slate-50 p-4 rounded-2xl text-lg font-black outline-none border border-transparent focus:border-indigo-100"></div>
                     </div>
                 </section>
 
-                <section class="bg-indigo-600 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100 text-white">
-                    <h3 class="text-[10px] font-black opacity-60 mb-4 uppercase tracking-[0.2em]">Transfer Directions</h3>
+                <section class="bg-indigo-600 p-6 rounded-[2.5rem] text-white">
+                    <h3 class="text-[10px] font-black opacity-60 mb-4 uppercase tracking-widest">Transfer Directions</h3>
                     <div id="transfer-list" class="space-y-3 mb-5 text-slate-800"></div>
                     <div class="flex justify-between items-end border-t border-white/20 pt-4">
-                        <span class="text-xs font-bold opacity-80">Free Budget (残金)</span>
+                        <span class="text-xs font-bold opacity-80">Free Budget</span>
                         <span id="remaining-amount" class="text-2xl font-black">¥0</span>
                     </div>
                 </section>
@@ -278,24 +307,19 @@
                 <div id="expense-list" class="space-y-4"></div>
             </div>
 
-            <!-- 設定タブ -->
             <div id="tab-master" class="tab-content space-y-8">
-                
-                <!-- 【復活】口座マスタ登録エリア -->
                 <section class="bg-white p-6 rounded-[2.5rem] border border-slate-200 space-y-4">
-                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Account Settings (口座登録)</h3>
+                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Account Settings</h3>
                     <div class="flex gap-2">
-                        <input type="text" id="new-account-name" class="flex-1 p-3 bg-slate-50 rounded-xl outline-none text-sm" placeholder="口座名 (例: 楽天銀行)">
-                        <button onclick="addAccount()" class="bg-indigo-600 text-white px-5 rounded-xl font-bold shadow-md active:scale-95 transition-all text-sm">追加</button>
+                        <input type="text" id="new-account-name" class="flex-1 p-3 bg-slate-50 rounded-xl outline-none text-sm" placeholder="口座名">
+                        <button onclick="addAccount()" class="bg-indigo-600 text-white px-5 rounded-xl font-bold text-sm">追加</button>
                     </div>
-                    <!-- 登録済みの口座がここにタグとして並びます -->
                     <div id="account-list" class="flex flex-wrap gap-2 pt-2"></div>
                 </section>
 
-                <!-- 費目マスタ登録エリア -->
                 <section class="bg-white p-6 rounded-[2.5rem] border border-slate-200 space-y-5">
-                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Master Setup (費目登録)</h3>
-                    <input type="text" id="cat-name" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="費目名（例：家賃、食費）">
+                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Master Setup</h3>
+                    <input type="text" id="cat-name" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="費目名">
                     <div class="grid grid-cols-2 gap-3">
                         <select id="cat-inc-type" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"><option>給与</option><option>賞与</option><option>臨時</option></select>
                         <select id="cat-exp-type" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"><option value="固定費">固定費</option><option value="変動費">変動費</option></select>
@@ -304,17 +328,17 @@
                         <input type="number" id="cat-target" class="p-4 bg-slate-50 rounded-2xl outline-none font-bold" placeholder="目標額">
                         <select id="cat-account" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"></select>
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-2xl text-[10px] font-black flex justify-around uppercase tracking-widest">
+                    <div class="bg-slate-50 p-4 rounded-2xl text-[10px] font-black flex justify-around uppercase">
                         <label class="flex items-center gap-2"><input type="radio" name="payer" value="夫" checked class="accent-indigo-600"> 夫担当</label>
                         <label class="flex items-center gap-2"><input type="radio" name="payer" value="妻" class="accent-indigo-600"> 妻担当</label>
                     </div>
-                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-bold shadow-lg shadow-indigo-100 active:scale-95 transition-all">マスタを保存</button>
+                    <button onclick="addCategory()" class="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-bold shadow-lg shadow-indigo-100">保存</button>
                 </section>
                 <div id="master-list" class="space-y-3"></div>
             </div>
         </main>
 
-        <nav class="fixed bottom-6 left-6 right-6 bg-white/80 border border-white rounded-[2.5rem] flex justify-around p-3 z-40 backdrop-blur-xl shadow-2xl shadow-slate-200">
+        <nav class="fixed bottom-6 left-6 right-6 bg-white/80 border border-white rounded-[2.5rem] flex justify-around p-3 z-40 backdrop-blur-xl shadow-2xl">
             <button onclick="switchTab('calc')" class="nav-btn flex flex-col items-center flex-1 text-indigo-600" data-tab="calc"><i data-lucide="calculator"></i><span class="text-[9px] font-black mt-1">CALC</span></button>
             <button onclick="switchTab('master')" class="nav-btn flex flex-col items-center flex-1 text-slate-400" data-tab="master"><i data-lucide="settings"></i><span class="text-[9px] font-black mt-1">MASTER</span></button>
         </nav>
