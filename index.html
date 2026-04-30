@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夫婦の家計管理 Cloud 完全版</title>
+    <title>夫婦の家計管理 Cloud 完全版 v1.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script type="module">
@@ -11,22 +11,20 @@
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         
-        // 外だしの設定ファイルを読み込み
         import { firebaseConfig } from "./firebase-config.js";
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // --- アプリ共通データ ---
-        window.appData = { accounts: ['共通口座', '夫口座', '妻口座'], categories: [], logs: {} };
+        // 初期データ（クラウドにデータがない場合）
+        window.appData = { accounts: ['共通口座'], categories: [], logs: {} };
 
-        // --- 認証ロジック ---
         window.handleLogin = async () => {
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-pass').value;
             try { await signInWithEmailAndPassword(auth, email, pass); } 
-            catch (e) { alert("ログインに失敗しました。設定を確認してください。"); }
+            catch (e) { alert("ログインに失敗しました。"); }
         };
         window.handleLogout = () => signOut(auth);
 
@@ -41,12 +39,12 @@
             }
         });
 
-        // --- Firebase同期ロジック ---
         function startSync() {
-            // クラウドからデータが降ってきたら自動でUIを全更新
             onSnapshot(doc(db, "household_data", "main_record"), (docSnap) => {
                 if (docSnap.exists()) {
                     window.appData = docSnap.data();
+                    // データ構造の互換性担保（accountsがない古いデータへの対策）
+                    if(!window.appData.accounts) window.appData.accounts = ['共通口座'];
                     renderCalc();
                     renderMaster();
                 }
@@ -57,7 +55,6 @@
             await setDoc(doc(db, "household_data", "main_record"), window.appData);
         };
 
-        // --- 描画・計算ロジック（完全統合版） ---
         window.switchTab = (tabId) => {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tabId}`).classList.add('active');
@@ -86,14 +83,12 @@
             const transferMap = {};
             const filtered = window.appData.categories.filter(c => c.incomeType === type);
 
-            // 送金指示の集計
             filtered.forEach(c => {
                 const route = `${c.payer} ➔ ${c.account}`;
                 transferMap[route] = (transferMap[route] || 0) + c.target;
                 if (c.expType === '固定費') totalExp += c.target;
             });
 
-            // 変動費の実績集計とアラート判定
             document.querySelectorAll('.exp-input').forEach(input => {
                 const val = Number(input.value) || 0;
                 const target = Number(input.dataset.target);
@@ -102,7 +97,6 @@
                 input.classList.toggle('is-over', val > target);
             });
 
-            // UI反映
             document.getElementById('transfer-list').innerHTML = Object.entries(transferMap).map(([r, a]) => `
                 <div class="flex justify-between bg-white px-3 py-2 rounded border border-indigo-100 text-xs font-bold shadow-sm">
                     <span class="text-slate-600">${r}</span><span class="text-indigo-600">¥${a.toLocaleString()}</span>
@@ -113,7 +107,7 @@
             remainEl.innerText = `¥${remain.toLocaleString()}`;
             remainEl.className = `font-black ${remain < 0 ? 'text-red-600' : 'text-indigo-700'}`;
 
-            window.saveToCloud(); // 入力のたびに自動保存
+            window.saveToCloud();
         };
 
         window.renderCalc = () => {
@@ -142,7 +136,18 @@
         };
 
         window.renderMaster = () => {
+            // ① 口座のセレクトボックスを更新
             document.getElementById('cat-account').innerHTML = window.appData.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+            
+            // ② 登録済み口座リスト（バッジ風）を描画
+            document.getElementById('account-list').innerHTML = window.appData.accounts.map((a, i) => `
+                <span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold">
+                    ${a}
+                    <button onclick="deleteAccount(${i})" class="text-slate-400 hover:text-red-500 ml-1 outline-none"><i data-lucide="x" class="w-3 h-3"></i></button>
+                </span>
+            `).join('');
+
+            // ③ 費目リストを描画
             document.getElementById('master-list').innerHTML = window.appData.categories.map((c, i) => `
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center text-xs shadow-sm">
                     <div>
@@ -157,6 +162,26 @@
             lucide.createIcons();
         };
 
+        // --- 復活させた機能：口座の追加と削除 ---
+        window.addAccount = () => {
+            const name = document.getElementById('new-account-name').value;
+            if (name && !window.appData.accounts.includes(name)) {
+                window.appData.accounts.push(name);
+                document.getElementById('new-account-name').value = '';
+                window.saveToCloud();
+                renderMaster();
+            }
+        };
+
+        window.deleteAccount = (index) => {
+            if(confirm("この口座を削除しますか？\n※既にこの口座を使っている費目がある場合はご注意ください。")) {
+                window.appData.accounts.splice(index, 1);
+                window.saveToCloud();
+                renderMaster();
+            }
+        };
+
+        // --- 既存の機能：費目の追加と削除 ---
         window.addCategory = () => {
             const name = document.getElementById('cat-name').value;
             const target = Number(document.getElementById('cat-target').value);
@@ -171,6 +196,7 @@
                 document.getElementById('cat-name').value = '';
                 document.getElementById('cat-target').value = '';
                 window.saveToCloud();
+                renderMaster();
             }
         };
 
@@ -178,6 +204,7 @@
             if(confirm("この費目を削除しますか？")) {
                 window.appData.categories.splice(index, 1);
                 window.saveToCloud();
+                renderMaster();
             }
         };
 
@@ -196,6 +223,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 pb-28">
 
+    <!-- ログイン画面 -->
     <div id="auth-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex items-center justify-center p-6">
         <div class="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-sm space-y-8 text-center">
             <div>
@@ -210,6 +238,7 @@
         </div>
     </div>
 
+    <!-- メインアプリ画面 -->
     <div id="app-screen" class="hidden">
         <header class="bg-indigo-600 text-white p-6 shadow-lg sticky top-0 z-40">
             <div class="max-w-md mx-auto flex justify-between items-center">
@@ -222,6 +251,7 @@
         </header>
 
         <main class="max-w-md mx-auto p-5 space-y-8">
+            <!-- 計算タブ -->
             <div id="tab-calc" class="tab-content active space-y-8">
                 <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
                     <div class="flex justify-between items-center mb-6">
@@ -248,9 +278,23 @@
                 <div id="expense-list" class="space-y-4"></div>
             </div>
 
+            <!-- 設定タブ -->
             <div id="tab-master" class="tab-content space-y-8">
+                
+                <!-- 【復活】口座マスタ登録エリア -->
+                <section class="bg-white p-6 rounded-[2.5rem] border border-slate-200 space-y-4">
+                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Account Settings (口座登録)</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-account-name" class="flex-1 p-3 bg-slate-50 rounded-xl outline-none text-sm" placeholder="口座名 (例: 楽天銀行)">
+                        <button onclick="addAccount()" class="bg-indigo-600 text-white px-5 rounded-xl font-bold shadow-md active:scale-95 transition-all text-sm">追加</button>
+                    </div>
+                    <!-- 登録済みの口座がここにタグとして並びます -->
+                    <div id="account-list" class="flex flex-wrap gap-2 pt-2"></div>
+                </section>
+
+                <!-- 費目マスタ登録エリア -->
                 <section class="bg-white p-6 rounded-[2.5rem] border border-slate-200 space-y-5">
-                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Master Setup</h3>
+                    <h3 class="font-black text-indigo-600 text-xs uppercase tracking-widest">Master Setup (費目登録)</h3>
                     <input type="text" id="cat-name" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="費目名（例：家賃、食費）">
                     <div class="grid grid-cols-2 gap-3">
                         <select id="cat-inc-type" class="bg-slate-50 p-4 rounded-2xl text-xs font-bold border-none"><option>給与</option><option>賞与</option><option>臨時</option></select>
